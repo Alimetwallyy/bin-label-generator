@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from openpyxl.styles import PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl import Workbook
+import re
 
 # --- 🔧 Generate bin labels ---
 def generate_bin_labels_table(bay_groups):
@@ -68,6 +69,7 @@ num_groups = st.number_input("How many bay groups do you want to define?", min_v
 
 all_bay_ids = {}
 duplicates_to_highlight = set()
+invalid_format_detected = False
 
 for group_idx in range(num_groups):
     st.header(f"🧱 Bay Group {group_idx + 1}")
@@ -86,18 +88,24 @@ for group_idx in range(num_groups):
     seen_in_group = set()
     skipped_duplicates_within = []
     skipped_duplicates_across = []
+    invalid_bays = []
 
     for bay in bay_list_raw:
-        if bay in seen_in_group:
+        if not re.fullmatch(r"BAY-\d{3}", bay):
+            invalid_bays.append(bay)
+        elif bay in seen_in_group:
             skipped_duplicates_within.append(bay)
         elif bay in all_bay_ids:
             skipped_duplicates_across.append((bay, all_bay_ids[bay]))
         seen_in_group.add(bay)
 
+    if invalid_bays:
+        st.error(f"❌ Invalid Bay ID format in group '{group_name}': {', '.join(invalid_bays)}. Must be like BAY-001.")
+        invalid_format_detected = True
+
     for bay in bay_list_raw:
         all_bay_ids[bay] = group_name
 
-    # Warnings only — no removal
     if skipped_duplicates_within:
         st.warning(f"⚠️ Duplicate bay IDs *within this group*: {', '.join(set(skipped_duplicates_within))}")
     if skipped_duplicates_across:
@@ -106,7 +114,7 @@ for group_idx in range(num_groups):
 
     duplicates_to_highlight.update(skipped_duplicates_within + [b for b, _ in skipped_duplicates_across])
 
-    if bay_list_raw:
+    if bay_list_raw and not invalid_bays:
         bay_groups.append({
             "group_name": group_name,
             "bays": bay_list_raw,
@@ -116,7 +124,9 @@ for group_idx in range(num_groups):
 
 # --- 🚀 Generate Bin Labels ---
 if st.button("✅ Generate Bin Labels"):
-    if bay_groups:
+    if invalid_format_detected:
+        st.error("❌ Please fix the Bay ID format errors before proceeding.")
+    elif bay_groups:
         df = generate_bin_labels_table(bay_groups)
         st.success("✅ Bin labels generated successfully!")
         st.dataframe(df)
