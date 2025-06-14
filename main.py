@@ -37,7 +37,6 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
     ax.set_title(f"Bin Layout for {bay_id}", fontsize=14)
     ax.axis('off')
 
-    # Define color palette
     colors = ['lightblue', 'lightgreen', 'salmon', 'khaki', 'plum', 'coral', 'lightpink', 'wheat']
     shelf_colors = {shelf: colors[i % len(colors)] for i, shelf in enumerate(shelves)}
 
@@ -46,7 +45,7 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
         for i in range(shelf_bins):
             bin_label = bay_id.replace("BAY-", "")[:-4] + shelf + f"{base_number + i:03d}"
             x = col_idx
-            y = -i  # Bin 0 on top
+            y = -i
             ax.text(x, y, bin_label, va='center', ha='center', fontsize=8,
                     bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor=shelf_colors[shelf]))
 
@@ -61,15 +60,11 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
 st.title("📦 Bin Label Generator")
 st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels.")
 
-if "reset_triggered" not in st.session_state:
-    st.session_state["reset_triggered"] = False
-
 # --- Reset Form Button ---
 if st.button("🔄 Reset Form"):
     for key in list(st.session_state.keys()):
         del st.session_state[key]
-    st.session_state["reset_triggered"] = True
-    st.success("Form has been reset! Please reload manually.")
+    st.success("Form has been reset. Please reload the page manually (press F5 or refresh).")
     st.stop()
 
 bay_groups = []
@@ -110,7 +105,6 @@ if st.button("✅ Generate Bin Labels"):
         st.success("✅ Bin labels generated successfully!")
         st.dataframe(df)
 
-        # Excel export
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False)
@@ -123,7 +117,6 @@ if st.button("✅ Generate Bin Labels"):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # Visual diagrams
         st.subheader("🖼️ Bin Layout Diagrams")
         for group in bay_groups:
             for bay_id in group['bays']:
