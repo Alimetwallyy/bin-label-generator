@@ -67,6 +67,7 @@ bay_groups = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
 
 all_bay_ids = {}
+removed_bays_log = []
 duplicates_to_highlight = set()
 
 for group_idx in range(num_groups):
@@ -82,39 +83,36 @@ for group_idx in range(num_groups):
         count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
         bins_per_shelf[shelf] = count
 
-    bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
+    bay_list_raw = [b.strip() for b in bays_input.splitlines() if b.strip()]
+    seen = set()
+    cleaned_bay_list = []
+    skipped_duplicates_within = []
+    skipped_duplicates_across = []
 
-    # 🔍 Check for duplicates within the same group
-    duplicates_within_group = {b for b in bay_list if bay_list.count(b) > 1}
-    if duplicates_within_group:
-        st.error("❌ Duplicate bay IDs found **within this group**:")
-        for dup in duplicates_within_group:
-            st.markdown(f"- **:red[{dup}]** appears {bay_list.count(dup)} times")
-            duplicates_to_highlight.add(dup)
+    for bay in bay_list_raw:
+        if bay in seen:
+            skipped_duplicates_within.append(bay)
+            continue
+        if bay in all_bay_ids:
+            skipped_duplicates_across.append((bay, all_bay_ids[bay]))
+            continue
+        cleaned_bay_list.append(bay)
+        seen.add(bay)
+        all_bay_ids[bay] = group_name
 
-    # 🔍 Check for duplicates across groups
-    duplicate_bays_across_groups = set()
-    for b in bay_list:
-        if b in all_bay_ids:
-            duplicate_bays_across_groups.add(b)
+    # Logging
+    if skipped_duplicates_within:
+        st.warning(f"⚠️ Removed duplicate bay IDs *within this group*: {', '.join(set(skipped_duplicates_within))}")
+    if skipped_duplicates_across:
+        for bay, other_group in skipped_duplicates_across:
+            st.warning(f"⚠️ Bay ID `{bay}` already exists in **{other_group}** – skipped here.")
 
-    if duplicate_bays_across_groups:
-        st.warning("⚠️ Duplicate bay IDs already used in **other groups**:")
-        for dup in duplicate_bays_across_groups:
-            group_origin = all_bay_ids[dup]
-            st.markdown(f"- **:orange[{dup}]** is already used in group **{group_origin}**")
-            duplicates_to_highlight.add(dup)
+    duplicates_to_highlight.update(skipped_duplicates_within + [b for b, _ in skipped_duplicates_across])
 
-    # Register bay IDs
-    for b in bay_list:
-        if b not in all_bay_ids:
-            all_bay_ids[b] = group_name
-
-    # Add only valid bay groups (no internal duplicates)
-    if bay_list and not duplicates_within_group:
+    if cleaned_bay_list:
         bay_groups.append({
             "group_name": group_name,
-            "bays": bay_list,
+            "bays": cleaned_bay_list,
             "shelves": shelves,
             "bins_per_shelf": bins_per_shelf
         })
@@ -126,17 +124,16 @@ if st.button("✅ Generate Bin Labels"):
         st.success("✅ Bin labels generated successfully!")
         st.dataframe(df)
 
-        # --- Export with Highlighting ---
+        # --- Excel export with highlights ---
         wb = Workbook()
         ws = wb.active
         ws.title = "Bin Labels"
-
         red_fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
 
         for r in dataframe_to_rows(df, index=False, header=True):
             ws.append(r)
 
-        # Apply red fill to duplicated Bay_IDs
+        # Highlight duplicate Bay_IDs
         for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=2, max_col=2):
             for cell in row:
                 if cell.value in duplicates_to_highlight:
@@ -153,7 +150,7 @@ if st.button("✅ Generate Bin Labels"):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # 📊 Diagrams
+        # 📊 Bin Layouts
         st.subheader("🖼️ Bin Layout Diagrams")
         for group in bay_groups:
             for bay_id in group['bays']:
