@@ -80,18 +80,21 @@ for group_idx in range(num_groups):
 
     bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
 
-    # 🔍 Check for duplicates within the same group
+    # 🔍 Check for duplicates within this group
     duplicates_within_group = {b for b in bay_list if bay_list.count(b) > 1}
     if duplicates_within_group:
-        st.error(f"❌ Duplicate bay IDs found within this group: {', '.join(duplicates_within_group)}")
+        st.error("❌ Duplicate bay IDs found within this group:")
+        for dup in duplicates_within_group:
+            st.markdown(f"- **:red[{dup}]** appears {bay_list.count(dup)} times")
 
     # 🔍 Check for duplicates across groups
     duplicate_bays_across_groups = set(all_bay_ids).intersection(set(bay_list))
     if duplicate_bays_across_groups:
-        st.error(f"❌ Duplicate bay IDs found from earlier groups: {', '.join(duplicate_bays_across_groups)}")
+        st.warning("⚠️ Duplicate bay IDs already used in other groups:")
+        for dup in duplicate_bays_across_groups:
+            st.markdown(f"- **:orange[{dup}]** already used")
 
-    all_bay_ids.extend(bay_list)
-
+    # Add only valid bay groups (no internal duplicates)
     if bay_list and not duplicates_within_group:
         bay_groups.append({
             "group_name": group_name,
@@ -100,12 +103,17 @@ for group_idx in range(num_groups):
             "bins_per_shelf": bins_per_shelf
         })
 
+    # Track all entered bay IDs for cross-group validation
+    all_bay_ids.extend(bay_list)
+
+# --- 🚀 Generate Bin Labels ---
 if st.button("✅ Generate Bin Labels"):
     if bay_groups:
         df = generate_bin_labels_table(bay_groups)
         st.success("✅ Bin labels generated successfully!")
         st.dataframe(df)
 
+        # Export to Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False)
@@ -118,6 +126,7 @@ if st.button("✅ Generate Bin Labels"):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
+        # 📊 Diagrams
         st.subheader("🖼️ Bin Layout Diagrams")
         for group in bay_groups:
             for bay_id in group['bays']:
