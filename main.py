@@ -79,12 +79,20 @@ for group_idx in range(num_groups):
         bins_per_shelf[shelf] = count
 
     bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
-    duplicate_bays = set(all_bay_ids).intersection(set(bay_list))
-    if duplicate_bays:
-        st.error(f"❌ Duplicate bay IDs detected in this group: {', '.join(duplicate_bays)}")
+
+    # 🔍 Check for duplicates within the same group
+    duplicates_within_group = {b for b in bay_list if bay_list.count(b) > 1}
+    if duplicates_within_group:
+        st.error(f"❌ Duplicate bay IDs found within this group: {', '.join(duplicates_within_group)}")
+
+    # 🔍 Check for duplicates across groups
+    duplicate_bays_across_groups = set(all_bay_ids).intersection(set(bay_list))
+    if duplicate_bays_across_groups:
+        st.error(f"❌ Duplicate bay IDs found from earlier groups: {', '.join(duplicate_bays_across_groups)}")
+
     all_bay_ids.extend(bay_list)
 
-    if bay_list:
+    if bay_list and not duplicates_within_group:
         bay_groups.append({
             "group_name": group_name,
             "bays": bay_list,
