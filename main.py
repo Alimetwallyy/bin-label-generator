@@ -67,7 +67,6 @@ bay_groups = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
 
 all_bay_ids = {}
-removed_bays_log = []
 duplicates_to_highlight = set()
 
 for group_idx in range(num_groups):
@@ -84,35 +83,33 @@ for group_idx in range(num_groups):
         bins_per_shelf[shelf] = count
 
     bay_list_raw = [b.strip() for b in bays_input.splitlines() if b.strip()]
-    seen = set()
-    cleaned_bay_list = []
+    seen_in_group = set()
     skipped_duplicates_within = []
     skipped_duplicates_across = []
 
     for bay in bay_list_raw:
-        if bay in seen:
+        if bay in seen_in_group:
             skipped_duplicates_within.append(bay)
-            continue
-        if bay in all_bay_ids:
+        elif bay in all_bay_ids:
             skipped_duplicates_across.append((bay, all_bay_ids[bay]))
-            continue
-        cleaned_bay_list.append(bay)
-        seen.add(bay)
+        seen_in_group.add(bay)
+
+    for bay in bay_list_raw:
         all_bay_ids[bay] = group_name
 
-    # Logging
+    # Warnings only — no removal
     if skipped_duplicates_within:
-        st.warning(f"⚠️ Removed duplicate bay IDs *within this group*: {', '.join(set(skipped_duplicates_within))}")
+        st.warning(f"⚠️ Duplicate bay IDs *within this group*: {', '.join(set(skipped_duplicates_within))}")
     if skipped_duplicates_across:
         for bay, other_group in skipped_duplicates_across:
-            st.warning(f"⚠️ Bay ID `{bay}` already exists in **{other_group}** – skipped here.")
+            st.warning(f"⚠️ Bay ID `{bay}` already exists in **{other_group}** – consider removing or renaming.")
 
     duplicates_to_highlight.update(skipped_duplicates_within + [b for b, _ in skipped_duplicates_across])
 
-    if cleaned_bay_list:
+    if bay_list_raw:
         bay_groups.append({
             "group_name": group_name,
-            "bays": cleaned_bay_list,
+            "bays": bay_list_raw,
             "shelves": shelves,
             "bins_per_shelf": bins_per_shelf
         })
@@ -133,7 +130,6 @@ if st.button("✅ Generate Bin Labels"):
         for r in dataframe_to_rows(df, index=False, header=True):
             ws.append(r)
 
-        # Highlight duplicate Bay_IDs
         for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=2, max_col=2):
             for cell in row:
                 if cell.value in duplicates_to_highlight:
@@ -150,7 +146,6 @@ if st.button("✅ Generate Bin Labels"):
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # 📊 Bin Layouts
         st.subheader("🖼️ Bin Layout Diagrams")
         for group in bay_groups:
             for bay_id in group['bays']:
