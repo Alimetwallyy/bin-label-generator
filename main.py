@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from openpyxl.styles import PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl import Workbook
-import re
 
 # --- 🔧 Generate bin labels ---
 def generate_bin_labels_table(bay_groups):
@@ -19,7 +18,7 @@ def generate_bin_labels_table(bay_groups):
 
         for bay in bay_ids:
             base_label = bay.replace("BAY-", "")
-            base_number = int(base_label[-3:])
+            base_number = int(base_label[-3:]) if base_label[-3:].isdigit() else 0
             max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves)
 
             for i in range(max_bins):
@@ -69,7 +68,6 @@ num_groups = st.number_input("How many bay groups do you want to define?", min_v
 
 all_bay_ids = {}
 duplicates_to_highlight = set()
-invalid_format_detected = False
 
 for group_idx in range(num_groups):
     st.header(f"🧱 Bay Group {group_idx + 1}")
@@ -88,20 +86,13 @@ for group_idx in range(num_groups):
     seen_in_group = set()
     skipped_duplicates_within = []
     skipped_duplicates_across = []
-    invalid_bays = []
 
     for bay in bay_list_raw:
-        if not re.fullmatch(r"BAY-\d{3}", bay):
-            invalid_bays.append(bay)
-        elif bay in seen_in_group:
+        if bay in seen_in_group:
             skipped_duplicates_within.append(bay)
         elif bay in all_bay_ids:
             skipped_duplicates_across.append((bay, all_bay_ids[bay]))
         seen_in_group.add(bay)
-
-    if invalid_bays:
-        st.error(f"❌ Invalid Bay ID format in group '{group_name}': {', '.join(invalid_bays)}. Must be like BAY-001.")
-        invalid_format_detected = True
 
     for bay in bay_list_raw:
         all_bay_ids[bay] = group_name
@@ -114,7 +105,7 @@ for group_idx in range(num_groups):
 
     duplicates_to_highlight.update(skipped_duplicates_within + [b for b, _ in skipped_duplicates_across])
 
-    if bay_list_raw and not invalid_bays:
+    if bay_list_raw:
         bay_groups.append({
             "group_name": group_name,
             "bays": bay_list_raw,
@@ -124,9 +115,7 @@ for group_idx in range(num_groups):
 
 # --- 🚀 Generate Bin Labels ---
 if st.button("✅ Generate Bin Labels"):
-    if invalid_format_detected:
-        st.error("❌ Please fix the Bay ID format errors before proceeding.")
-    elif bay_groups:
+    if bay_groups:
         df = generate_bin_labels_table(bay_groups)
         st.success("✅ Bin labels generated successfully!")
         st.dataframe(df)
@@ -162,7 +151,7 @@ if st.button("✅ Generate Bin Labels"):
                 shelves = group['shelves']
                 bins_per_shelf = group['bins_per_shelf']
                 base_label = bay_id.replace("BAY-", "")
-                base_number = int(base_label[-3:])
+                base_number = int(base_label[-3:]) if base_label[-3:].isdigit() else 0
                 fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
                 st.pyplot(fig)
     else:
