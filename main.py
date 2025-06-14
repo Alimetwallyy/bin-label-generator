@@ -60,13 +60,6 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
 st.title("📦 Bin Label Generator")
 st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels.")
 
-# --- Reset Form Button ---
-if st.button("🔄 Reset Form"):
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.success("Form has been reset. Please reload the page manually (press F5 or refresh).")
-    st.stop()
-
 bay_groups = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
 
