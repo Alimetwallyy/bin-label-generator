@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 from openpyxl.styles import PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl import Workbook
+import string
 
 # --- 🔧 Generate bin labels ---
 def generate_bin_labels_table(bay_groups):
     data = []
-
     for group in bay_groups:
         bay_ids = group['bays']
         shelves = group['shelves']
@@ -31,7 +31,6 @@ def generate_bin_labels_table(bay_groups):
                     else:
                         row[f"Shelf_{shelf}"] = None
                 data.append(row)
-
     return pd.DataFrame(data)
 
 # --- 📊 Draw bin diagram ---
@@ -60,8 +59,8 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
     return fig
 
 # --- 🖥️ Streamlit UI ---
-st.title("📦 Bin Label Generator Ver. 1.0")
-st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels.")
+st.title("📦 Bin Label Generator")
+st.markdown("Define bay groups, number of shelves, and bins per shelf to generate structured bin labels.")
 
 bay_groups = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
@@ -74,8 +73,9 @@ for group_idx in range(num_groups):
     group_name = st.text_input("Group name", value=f"Group {group_idx + 1}", key=f"group_name_{group_idx}")
 
     bays_input = st.text_area(f"Enter bay IDs (one per line)", key=f"bays_{group_idx}")
-    shelves_input = st.text_input(f"Enter shelf labels (comma-separated like A,B,C)", key=f"shelves_{group_idx}")
-    shelves = [s.strip() for s in shelves_input.split(",") if s.strip()]
+
+    num_shelves = st.number_input(f"How many shelves? (max 26)", min_value=1, max_value=26, value=3, key=f"num_shelves_{group_idx}")
+    shelves = list(string.ascii_uppercase[:num_shelves])
 
     bins_per_shelf = {}
     for shelf in shelves:
