@@ -76,6 +76,7 @@ for group_idx in range(num_groups):
 
     num_shelves = st.number_input(f"How many shelves? (max 26)", min_value=1, max_value=26, value=3, key=f"num_shelves_{group_idx}")
     shelves = list(string.ascii_uppercase[:num_shelves])
+    st.markdown(f"🔤 **Auto-generated shelf labels:** `{', '.join(shelves)}`")
 
     bins_per_shelf = {}
     for shelf in shelves:
