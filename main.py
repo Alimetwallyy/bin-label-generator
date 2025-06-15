@@ -20,9 +20,8 @@ def generate_bin_labels_table(bay_groups):
 
         for bay in bay_ids:
             base_label = bay.replace("BAY-", "")
-            base_number = int(base_label[-3:])
             aisle = base_label[9:12] if len(base_label) >= 12 else ""
-
+            base_number = int(base_label[-3:])
             max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves)
 
             for i in range(max_bins):
@@ -41,7 +40,7 @@ def generate_bin_labels_table(bay_groups):
                 data.append(row)
 
         df = pd.DataFrame(data)
-        all_dataframes.append((group_name, df))
+        all_dataframes.append((group_name, df, shelves))
     return all_dataframes
 
 # --- 📊 Draw bin diagram ---
@@ -107,38 +106,35 @@ if st.button("Generate Bin Labels") and not errors:
     all_dfs = generate_bin_labels_table(bay_groups)
     st.success("✅ Bin labels generated successfully!")
 
-    # --- Excel export with formatting ---
     output = io.BytesIO()
     wb = Workbook()
     wb.remove(wb.active)
 
     hex_colors = ["339900", "9B30FF", "FFFF00", "00FFFF", "CC0000", "F88017", "FF00FF", "996600", "00FF00", "FF6565", "9999FE"]
 
-    for group_name, df in all_dfs:
+    for group_name, df, shelves in all_dfs:
         ws = wb.create_sheet(title=group_name)
 
-        # Header Row 1: HEX label + color blocks
-        ws.merge_cells('A1:C1')
-        ws['A1'] = "HEX COLOR CODES ->"
-        ws['A1'].fill = PatternFill(start_color="FFFF00", fill_type="solid")
-        ws['A1'].alignment = Alignment(horizontal="center")
+        # Merge A1 to C1 and set header
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=3)
+        ws.cell(row=1, column=1, value="HEX COLOR CODES ->")
+        ws.cell(row=1, column=1).fill = PatternFill(start_color="FFFF00", fill_type="solid")
+        ws.cell(row=1, column=1).alignment = Alignment(horizontal="center")
 
         for idx, color in enumerate(hex_colors):
             cell = ws.cell(row=1, column=4 + idx, value=color)
             cell.fill = PatternFill(start_color=color, fill_type="solid")
 
-        # Header Row 2: Shelves with same colors
-        shelf_cols = df.columns[3:]  # Exclude BAY TYPE, AISLE, BAY ID
-        for idx, shelf in enumerate(shelf_cols):
-            col_idx = 4 + idx
-            ws.cell(row=2, column=col_idx, value=shelf)
-            if idx < len(hex_colors):
-                ws.cell(row=2, column=col_idx).fill = PatternFill(start_color=hex_colors[idx], fill_type="solid")
+        # Second row: headers
+        ws.cell(row=2, column=1, value="BAY TYPE")
+        ws.cell(row=2, column=2, value="AISLE")
+        ws.cell(row=2, column=3, value="BAY ID")
 
-        # Fill static headers
-        ws['A2'] = "BAY TYPE"
-        ws['B2'] = "AISLE"
-        ws['C2'] = "BAY ID"
+        for idx, shelf in enumerate(shelves):
+            col = 4 + idx
+            cell = ws.cell(row=2, column=col, value=shelf)
+            if idx < len(hex_colors):
+                cell.fill = PatternFill(start_color=hex_colors[idx], fill_type="solid")
 
         for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=False), start=3):
             for c_idx, val in enumerate(row, start=1):
@@ -154,7 +150,6 @@ if st.button("Generate Bin Labels") and not errors:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-    # Diagrams
     st.subheader("🖼️ Bin Layout Diagrams")
     for group in bay_groups:
         for bay_id in group['bays']:
