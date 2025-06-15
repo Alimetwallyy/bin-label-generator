@@ -60,7 +60,7 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
     return fig
 
 # --- 🖥️ Streamlit UI ---
-st.title("📦 Bin Label Generator")
+st.title("📦 Bin Label Generator Ver. 1.0")
 st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels.")
 
 bay_groups = []
