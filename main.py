@@ -2,181 +2,165 @@ import streamlit as st
 import pandas as pd
 import io
 import matplotlib.pyplot as plt
-from openpyxl.styles import PatternFill
-from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 import string
 
 # --- 🔧 Generate bin labels ---
 def generate_bin_labels_table(bay_groups):
-    data = []
+    all_dataframes = []
     for group in bay_groups:
         bay_ids = group['bays']
         shelves = group['shelves']
         bins_per_shelf = group['bins_per_shelf']
         group_name = group['group_name']
+        data = []
 
         for bay in bay_ids:
             base_label = bay.replace("BAY-", "")
-            base_number = int(base_label[-3:]) if base_label[-3:].isdigit() else 0
+            base_number = int(base_label[-3:])
+            aisle = base_label[9:12] if len(base_label) >= 12 else ""
+
             max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves)
 
             for i in range(max_bins):
-                row = {'Bay_Group': group_name, 'Bay_ID': bay}
+                row = {
+                    'BAY TYPE': group_name,
+                    'AISLE': aisle,
+                    'BAY ID': bay
+                }
                 for shelf in shelves:
                     shelf_bin_count = bins_per_shelf.get(shelf, 0)
                     if i < shelf_bin_count:
                         bin_label = base_label[:-4] + shelf + f"{base_number + i:03d}"
-                        row[f"Shelf_{shelf}"] = bin_label
+                        row[shelf] = bin_label
                     else:
-                        row[f"Shelf_{shelf}"] = None
+                        row[shelf] = None
                 data.append(row)
-    return pd.DataFrame(data)
+
+        df = pd.DataFrame(data)
+        all_dataframes.append((group_name, df))
+    return all_dataframes
 
 # --- 📊 Draw bin diagram ---
 def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
     fig, ax = plt.subplots(figsize=(len(shelves) * 2, max(bins_per_shelf.values()) * 0.6))
     ax.set_title(f"Bin Layout for {bay_id}", fontsize=14)
     ax.axis('off')
-
     colors = ['lightblue', 'lightgreen', 'salmon', 'khaki', 'plum', 'coral', 'lightpink', 'wheat']
     shelf_colors = {shelf: colors[i % len(colors)] for i, shelf in enumerate(shelves)}
-
     for col_idx, shelf in enumerate(shelves):
         shelf_bins = bins_per_shelf.get(shelf, 0)
         for i in range(shelf_bins):
             bin_label = bay_id.replace("BAY-", "")[:-4] + shelf + f"{base_number + i:03d}"
-            x = col_idx
-            y = -i
-            ax.text(x, y, bin_label, va='center', ha='center', fontsize=8,
+            ax.text(col_idx, -i, bin_label, va='center', ha='center', fontsize=8,
                     bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor=shelf_colors[shelf]))
-
-    ax.set_xlim(-0.5, len(shelves) - 0.5)
-    ax.set_ylim(-max(bins_per_shelf.values()), 1)
-    ax.set_xticks(range(len(shelves)))
-    ax.set_xticklabels(shelves)
-
     return fig
 
 # --- 🖥️ Streamlit UI ---
 st.title("📦 Bin Label Generator")
-st.markdown("Define bay groups, shelf range, and bins per shelf to generate structured bin labels.")
+
+if st.button("Reset Form"):
+    st.session_state.clear()
+    st.experimental_rerun()
 
 bay_groups = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
 
-all_bay_ids = {}
-duplicates_to_highlight = set()
+used_bays = set()
+errors = []
 
 for group_idx in range(num_groups):
     st.header(f"🧱 Bay Group {group_idx + 1}")
-    group_name = st.text_input("Group name", value=f"Group {group_idx + 1}", key=f"group_name_{group_idx}")
-
+    group_name = st.text_input(f"Group Name", value=f"Bay Group {group_idx + 1}", key=f"group_name_{group_idx}")
     bays_input = st.text_area(f"Enter bay IDs (one per line)", key=f"bays_{group_idx}")
-
-    shelf_range_input = st.text_input("Enter shelf range (e.g. A-E)", key=f"shelf_range_{group_idx}").upper().replace(" ", "")
-    shelves = []
-
-    try:
-        if "-" in shelf_range_input:
-            start, end = shelf_range_input.split("-")
-            alphabet = list(string.ascii_uppercase)
-            if start in alphabet and end in alphabet:
-                start_idx = alphabet.index(start)
-                end_idx = alphabet.index(end)
-                if start_idx <= end_idx:
-                    shelves = alphabet[start_idx:end_idx+1]
-                else:
-                    st.warning("⚠️ Invalid shelf range: start letter must be before end letter.")
-            else:
-                st.warning("⚠️ Invalid letters in shelf range.")
-        else:
-            if shelf_range_input in string.ascii_uppercase:
-                shelves = [shelf_range_input]
-            else:
-                st.warning("⚠️ Invalid shelf input.")
-    except Exception:
-        st.warning("⚠️ Invalid shelf range format. Use format like A-D.")
-
-    if shelves:
-        st.markdown(f"🔤 **Generated shelves:** `{', '.join(shelves)}`")
-
+    num_shelves = st.number_input(f"Number of shelves (auto A-Z)", min_value=1, max_value=26, value=3, key=f"num_shelves_{group_idx}")
+    shelves = list(string.ascii_uppercase[:num_shelves])
     bins_per_shelf = {}
     for shelf in shelves:
         count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
         bins_per_shelf[shelf] = count
 
-    bay_list_raw = [b.strip() for b in bays_input.splitlines() if b.strip()]
-    seen_in_group = set()
-    skipped_duplicates_within = []
-    skipped_duplicates_across = []
-
-    for bay in bay_list_raw:
-        if bay in seen_in_group:
-            skipped_duplicates_within.append(bay)
-        elif bay in all_bay_ids:
-            skipped_duplicates_across.append((bay, all_bay_ids[bay]))
-        seen_in_group.add(bay)
-
-    for bay in bay_list_raw:
-        all_bay_ids[bay] = group_name
-
-    if skipped_duplicates_within:
-        st.warning(f"⚠️ Duplicate bay IDs *within this group*: {', '.join(set(skipped_duplicates_within))}")
-    if skipped_duplicates_across:
-        for bay, other_group in skipped_duplicates_across:
-            st.warning(f"⚠️ Bay ID `{bay}` already exists in **{other_group}** – consider removing or renaming.")
-
-    duplicates_to_highlight.update(skipped_duplicates_within + [b for b, _ in skipped_duplicates_across])
-
-    if bay_list_raw and shelves:
+    if bays_input:
+        bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
+        group_duplicates = set([b for b in bay_list if bay_list.count(b) > 1])
+        cross_duplicates = used_bays.intersection(set(bay_list))
+        if group_duplicates:
+            errors.append(f"❌ Group '{group_name}' contains duplicate bays: {', '.join(group_duplicates)}")
+        if cross_duplicates:
+            errors.append(f"❌ Group '{group_name}' has bays already used in previous groups: {', '.join(cross_duplicates)}")
+        used_bays.update(bay_list)
         bay_groups.append({
             "group_name": group_name,
-            "bays": bay_list_raw,
+            "bays": bay_list,
             "shelves": shelves,
             "bins_per_shelf": bins_per_shelf
         })
 
-# --- 🚀 Generate Bin Labels ---
-if st.button("✅ Generate Bin Labels"):
-    if bay_groups:
-        df = generate_bin_labels_table(bay_groups)
-        st.success("✅ Bin labels generated successfully!")
-        st.dataframe(df)
+if errors:
+    for e in errors:
+        st.error(e)
 
-        # --- Excel export with highlights ---
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Bin Labels"
-        red_fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
+if st.button("Generate Bin Labels") and not errors:
+    all_dfs = generate_bin_labels_table(bay_groups)
+    st.success("✅ Bin labels generated successfully!")
 
-        for r in dataframe_to_rows(df, index=False, header=True):
-            ws.append(r)
+    # --- Excel export with formatting ---
+    output = io.BytesIO()
+    wb = Workbook()
+    wb.remove(wb.active)
 
-        for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=2, max_col=2):
-            for cell in row:
-                if cell.value in duplicates_to_highlight:
-                    cell.fill = red_fill
+    hex_colors = ["339900", "9B30FF", "FFFF00", "00FFFF", "CC0000", "F88017", "FF00FF", "996600", "00FF00", "FF6565", "9999FE"]
 
-        output = io.BytesIO()
-        wb.save(output)
-        output.seek(0)
+    for group_name, df in all_dfs:
+        ws = wb.create_sheet(title=group_name)
 
-        st.download_button(
-            label="📥 Download Excel File (with highlights)",
-            data=output,
-            file_name="bin_labels_highlighted.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        # Header Row 1: HEX label + color blocks
+        ws.merge_cells('A1:C1')
+        ws['A1'] = "HEX COLOR CODES ->"
+        ws['A1'].fill = PatternFill(start_color="FFFF00", fill_type="solid")
+        ws['A1'].alignment = Alignment(horizontal="center")
 
-        st.subheader("🖼️ Bin Layout Diagrams")
-        for group in bay_groups:
-            for bay_id in group['bays']:
-                shelves = group['shelves']
-                bins_per_shelf = group['bins_per_shelf']
-                base_label = bay_id.replace("BAY-", "")
-                base_number = int(base_label[-3:]) if base_label[-3:].isdigit() else 0
-                fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
-                st.pyplot(fig)
-    else:
-        st.warning("⚠️ Please define at least one valid bay group.")
+        for idx, color in enumerate(hex_colors):
+            cell = ws.cell(row=1, column=4 + idx, value=color)
+            cell.fill = PatternFill(start_color=color, fill_type="solid")
+
+        # Header Row 2: Shelves with same colors
+        shelf_cols = df.columns[3:]  # Exclude BAY TYPE, AISLE, BAY ID
+        for idx, shelf in enumerate(shelf_cols):
+            col_idx = 4 + idx
+            ws.cell(row=2, column=col_idx, value=shelf)
+            if idx < len(hex_colors):
+                ws.cell(row=2, column=col_idx).fill = PatternFill(start_color=hex_colors[idx], fill_type="solid")
+
+        # Fill static headers
+        ws['A2'] = "BAY TYPE"
+        ws['B2'] = "AISLE"
+        ws['C2'] = "BAY ID"
+
+        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=False), start=3):
+            for c_idx, val in enumerate(row, start=1):
+                ws.cell(row=r_idx, column=c_idx, value=val)
+
+    wb.save(output)
+    output.seek(0)
+
+    st.download_button(
+        label="📥 Download Formatted Excel File",
+        data=output,
+        file_name="bin_labels_formatted.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # Diagrams
+    st.subheader("🖼️ Bin Layout Diagrams")
+    for group in bay_groups:
+        for bay_id in group['bays']:
+            shelves = group['shelves']
+            bins_per_shelf = group['bins_per_shelf']
+            base_label = bay_id.replace("BAY-", "")
+            base_number = int(base_label[-3:])
+            fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
+            st.pyplot(fig)
