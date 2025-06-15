@@ -8,7 +8,6 @@ from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 
-# --- 🔧 Generate bin labels ---
 def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
     data = []
     for bay in bay_ids:
@@ -20,9 +19,9 @@ def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
 
         for i in range(max_bins):
             row = {
-                'Bay_Type': group_name,
+                'BAY TYPE': group_name,
                 'AISLE': aisle,
-                'Bay_ID': bay
+                'BAY ID': bay
             }
             for shelf in shelves:
                 shelf_bin_count = bins_per_shelf.get(shelf, 0)
@@ -34,7 +33,6 @@ def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
             data.append(row)
     return pd.DataFrame(data)
 
-# --- 📊 Draw bin diagram ---
 def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
     fig, ax = plt.subplots(figsize=(len(shelves) * 2, max(bins_per_shelf.values()) * 0.6))
     ax.set_title(f"Bin Layout for {bay_id}", fontsize=14)
@@ -59,7 +57,6 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
 
     return fig
 
-# --- Excel Styling ---
 def style_excel(writer, sheet_name, df, shelves):
     ws = writer.sheets[sheet_name]
     yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
@@ -73,9 +70,7 @@ def style_excel(writer, sheet_name, df, shelves):
         "FF00FF", "996600", "00FF00", "FF6565", "9999FE"
     ]
 
-    max_col = df.shape[1] + 3
     if shelves:
-        # Merge A1 to C1 and set hex color text
         ws.merge_cells('A1:C1')
         ws['A1'] = "HEX COLOR CODES ->"
         ws['A1'].fill = yellow_fill
@@ -83,7 +78,6 @@ def style_excel(writer, sheet_name, df, shelves):
         ws['A1'].alignment = center_align
         ws['A1'].border = border
 
-        # Color hex codes
         for i, hex_color in enumerate(hex_colors[:len(shelves)]):
             col_letter = get_column_letter(4 + i)  # D is column 4
             ws[f"{col_letter}1"] = hex_color
@@ -92,30 +86,29 @@ def style_excel(writer, sheet_name, df, shelves):
             ws[f"{col_letter}1"].alignment = center_align
             ws[f"{col_letter}1"].border = border
 
-            # Shelf name below with same color
-            shelf_letter = shelves[i] if i < len(shelves) else ''
-            ws[f"{col_letter}2"] = shelf_letter
+            ws[f"{col_letter}2"] = shelves[i]
             ws[f"{col_letter}2"].fill = PatternFill(start_color=hex_color, end_color=hex_color, fill_type="solid")
             ws[f"{col_letter}2"].font = bold_font
             ws[f"{col_letter}2"].alignment = center_align
             ws[f"{col_letter}2"].border = border
 
-    # Write header row (bold & bordered)
-    for col in range(1, max_col + 1):
-        cell = ws.cell(row=2, column=col)
+    # Style header (row 2 if hex row exists, else row 1)
+    header_row = 2 if shelves else 1
+    for col in range(1, df.shape[1] + 1):
+        cell = ws.cell(row=header_row, column=col)
         cell.font = bold_font
         cell.alignment = center_align
         cell.border = border
 
-    # Format the rest of the table
-    for row in ws.iter_rows(min_row=3, max_row=ws.max_row, max_col=ws.max_column):
+    # Style all data rows
+    for row in ws.iter_rows(min_row=header_row + 1, max_row=ws.max_row, max_col=ws.max_column):
         for cell in row:
             if cell.value is not None:
-                cell.border = border
                 cell.font = bold_font
                 cell.alignment = center_align
+                cell.border = border
 
-# --- 🖥️ Streamlit UI ---
+# --- Streamlit App ---
 st.title("📦 Bin Label Generator")
 st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels.")
 
@@ -149,7 +142,7 @@ if st.button("Generate Bin Labels"):
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             for group in bay_groups:
                 df = generate_bin_labels_table(group["name"], group["bays"], group["shelves"], group["bins_per_shelf"])
-                df.to_excel(writer, index=False, startrow=2, sheet_name=group["name"])
+                df.to_excel(writer, index=False, startrow=1, sheet_name=group["name"])
                 style_excel(writer, group["name"], df, group["shelves"])
         output.seek(0)
 
