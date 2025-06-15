@@ -60,7 +60,7 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
 
 # --- 🖥️ Streamlit UI ---
 st.title("📦 Bin Label Generator")
-st.markdown("Define bay groups, number of shelves, and bins per shelf to generate structured bin labels.")
+st.markdown("Define bay groups, shelf range, and bins per shelf to generate structured bin labels.")
 
 bay_groups = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
@@ -74,9 +74,32 @@ for group_idx in range(num_groups):
 
     bays_input = st.text_area(f"Enter bay IDs (one per line)", key=f"bays_{group_idx}")
 
-    num_shelves = st.number_input(f"How many shelves? (max 26)", min_value=1, max_value=26, value=3, key=f"num_shelves_{group_idx}")
-    shelves = list(string.ascii_uppercase[:num_shelves])
-    st.markdown(f"🔤 **Auto-generated shelf labels:** `{', '.join(shelves)}`")
+    shelf_range_input = st.text_input("Enter shelf range (e.g. A-E)", key=f"shelf_range_{group_idx}").upper().replace(" ", "")
+    shelves = []
+
+    try:
+        if "-" in shelf_range_input:
+            start, end = shelf_range_input.split("-")
+            alphabet = list(string.ascii_uppercase)
+            if start in alphabet and end in alphabet:
+                start_idx = alphabet.index(start)
+                end_idx = alphabet.index(end)
+                if start_idx <= end_idx:
+                    shelves = alphabet[start_idx:end_idx+1]
+                else:
+                    st.warning("⚠️ Invalid shelf range: start letter must be before end letter.")
+            else:
+                st.warning("⚠️ Invalid letters in shelf range.")
+        else:
+            if shelf_range_input in string.ascii_uppercase:
+                shelves = [shelf_range_input]
+            else:
+                st.warning("⚠️ Invalid shelf input.")
+    except Exception:
+        st.warning("⚠️ Invalid shelf range format. Use format like A-D.")
+
+    if shelves:
+        st.markdown(f"🔤 **Generated shelves:** `{', '.join(shelves)}`")
 
     bins_per_shelf = {}
     for shelf in shelves:
@@ -106,7 +129,7 @@ for group_idx in range(num_groups):
 
     duplicates_to_highlight.update(skipped_duplicates_within + [b for b, _ in skipped_duplicates_across])
 
-    if bay_list_raw:
+    if bay_list_raw and shelves:
         bay_groups.append({
             "group_name": group_name,
             "bays": bay_list_raw,
