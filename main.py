@@ -9,9 +9,6 @@ from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 
-# Debug: Confirm app loads
-st.write("DEBUG: App loaded successfully with all imports.")
-
 def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
     data = []
     for bay in bay_ids:
