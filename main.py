@@ -3,159 +3,172 @@ import pandas as pd
 import io
 import matplotlib.pyplot as plt
 from openpyxl import Workbook
-from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import PatternFill, Alignment
+from openpyxl.styles import Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-import string
 
-# --- 🔧 Generate bin labels ---
-def generate_bin_labels_table(bay_groups):
-    all_dataframes = []
-    for group in bay_groups:
-        bay_ids = group['bays']
-        shelves = group['shelves']
-        bins_per_shelf = group['bins_per_shelf']
-        group_name = group['group_name']
-        data = []
+st.set_page_config(page_title="Bin Label Generator", layout="wide")
 
-        for bay in bay_ids:
-            base_label = bay.replace("BAY-", "")
-            aisle = base_label[9:12] if len(base_label) >= 12 else ""
-            base_number = int(base_label[-3:])
-            max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves)
+# --- 🧠 Helper Functions ---
+def generate_shelf_labels(count):
+    return [chr(i) for i in range(ord('A'), ord('A') + count)]
 
-            for i in range(max_bins):
-                row = {
-                    'BAY TYPE': group_name,
-                    'AISLE': aisle,
-                    'BAY ID': bay
-                }
-                for shelf in shelves:
-                    shelf_bin_count = bins_per_shelf.get(shelf, 0)
-                    if i < shelf_bin_count:
-                        bin_label = base_label[:-4] + shelf + f"{base_number + i:03d}"
-                        row[shelf] = bin_label
-                    else:
-                        row[shelf] = None
-                data.append(row)
+def extract_aisle_number(bay_id):
+    parts = bay_id.split('-')
+    for part in parts:
+        if part.isdigit() and len(part) == 3:
+            return part
+    return ""
 
-        df = pd.DataFrame(data)
-        all_dataframes.append((group_name, df, shelves))
-    return all_dataframes
+def get_duplicates_within(lst):
+    return set([x for x in lst if lst.count(x) > 1])
 
-# --- 📊 Draw bin diagram ---
-def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
-    fig, ax = plt.subplots(figsize=(len(shelves) * 2, max(bins_per_shelf.values()) * 0.6))
-    ax.set_title(f"Bin Layout for {bay_id}", fontsize=14)
-    ax.axis('off')
-    colors = ['lightblue', 'lightgreen', 'salmon', 'khaki', 'plum', 'coral', 'lightpink', 'wheat']
-    shelf_colors = {shelf: colors[i % len(colors)] for i, shelf in enumerate(shelves)}
-    for col_idx, shelf in enumerate(shelves):
-        shelf_bins = bins_per_shelf.get(shelf, 0)
-        for i in range(shelf_bins):
-            bin_label = bay_id.replace("BAY-", "")[:-4] + shelf + f"{base_number + i:03d}"
-            ax.text(col_idx, -i, bin_label, va='center', ha='center', fontsize=8,
-                    bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor=shelf_colors[shelf]))
-    return fig
+def get_duplicates_across(groups):
+    seen = {}
+    duplicates = {}
+    for group in groups:
+        for bay in group["bays"]:
+            if bay in seen:
+                duplicates.setdefault(bay, set()).update([group["group_name"], seen[bay]])
+            else:
+                seen[bay] = group["group_name"]
+    return {k: list(v) for k, v in duplicates.items()}
 
-# --- 🖥️ Streamlit UI ---
-st.title("📦 Bin Label Generator")
+def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
+    data = []
+    for bay in bay_ids:
+        base_label = bay.replace("BAY-", "")
+        base_number = int(base_label[-3:])
+        max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves)
 
-if st.button("Reset Form"):
-    st.session_state.clear()
-    st.experimental_rerun()
+        for i in range(max_bins):
+            row = {
+                'BAY TYPE': group_name,
+                'AISLE': extract_aisle_number(bay),
+                'BAY ID': bay
+            }
+            for shelf in shelves:
+                shelf_bin_count = bins_per_shelf.get(shelf, 0)
+                if i < shelf_bin_count:
+                    bin_label = base_label[:-4] + shelf + f"{base_number + i:03d}"
+                    row[shelf] = bin_label
+                else:
+                    row[shelf] = None
+            data.append(row)
+    return pd.DataFrame(data)
 
-bay_groups = []
-num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
-
-used_bays = set()
-errors = []
-
-for group_idx in range(num_groups):
-    st.header(f"🧱 Bay Group {group_idx + 1}")
-    group_name = st.text_input(f"Group Name", value=f"Bay Group {group_idx + 1}", key=f"group_name_{group_idx}")
-    bays_input = st.text_area(f"Enter bay IDs (one per line)", key=f"bays_{group_idx}")
-    num_shelves = st.number_input(f"Number of shelves (auto A-Z)", min_value=1, max_value=26, value=3, key=f"num_shelves_{group_idx}")
-    shelves = list(string.ascii_uppercase[:num_shelves])
-    bins_per_shelf = {}
-    for shelf in shelves:
-        count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
-        bins_per_shelf[shelf] = count
-
-    if bays_input:
-        bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
-        group_duplicates = set([b for b in bay_list if bay_list.count(b) > 1])
-        cross_duplicates = used_bays.intersection(set(bay_list))
-        if group_duplicates:
-            errors.append(f"❌ Group '{group_name}' contains duplicate bays: {', '.join(group_duplicates)}")
-        if cross_duplicates:
-            errors.append(f"❌ Group '{group_name}' has bays already used in previous groups: {', '.join(cross_duplicates)}")
-        used_bays.update(bay_list)
-        bay_groups.append({
-            "group_name": group_name,
-            "bays": bay_list,
-            "shelves": shelves,
-            "bins_per_shelf": bins_per_shelf
-        })
-
-if errors:
-    for e in errors:
-        st.error(e)
-
-if st.button("Generate Bin Labels") and not errors:
-    all_dfs = generate_bin_labels_table(bay_groups)
-    st.success("✅ Bin labels generated successfully!")
-
+def export_to_excel(grouped_dfs):
     output = io.BytesIO()
     wb = Workbook()
     wb.remove(wb.active)
 
     hex_colors = ["339900", "9B30FF", "FFFF00", "00FFFF", "CC0000", "F88017", "FF00FF", "996600", "00FF00", "FF6565", "9999FE"]
+    border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                    top=Side(style='thin'), bottom=Side(style='thin'))
+    bold_font = Font(bold=True)
 
-    for group_name, df, shelves in all_dfs:
+    for group_name, df in grouped_dfs.items():
         ws = wb.create_sheet(title=group_name)
 
-        # Merge A1 to C1 and set header
-        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=3)
-        ws.cell(row=1, column=1, value="HEX COLOR CODES ->")
-        ws.cell(row=1, column=1).fill = PatternFill(start_color="FFFF00", fill_type="solid")
-        ws.cell(row=1, column=1).alignment = Alignment(horizontal="center")
+        shelves = [col for col in df.columns if col not in ['BAY TYPE', 'AISLE', 'BAY ID']]
+        has_shelves = len(shelves) > 0
 
-        for idx, color in enumerate(hex_colors):
-            cell = ws.cell(row=1, column=4 + idx, value=color)
-            cell.fill = PatternFill(start_color=color, fill_type="solid")
+        if has_shelves:
+            # ABC1 cell
+            ws.merge_cells('A1:C1')
+            cell = ws['A1']
+            cell.value = "HEX COLOR CODES ->"
+            cell.fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            cell.font = bold_font
 
-        # Second row: headers
-        ws.cell(row=2, column=1, value="BAY TYPE")
-        ws.cell(row=2, column=2, value="AISLE")
-        ws.cell(row=2, column=3, value="BAY ID")
+            for i, color in enumerate(hex_colors):
+                col_letter = get_column_letter(4 + i)
+                c = ws[f"{col_letter}1"]
+                c.value = color
+                c.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                c.font = bold_font
+                c.border = border
 
-        for idx, shelf in enumerate(shelves):
-            col = 4 + idx
-            cell = ws.cell(row=2, column=col, value=shelf)
-            if idx < len(hex_colors):
-                cell.fill = PatternFill(start_color=hex_colors[idx], fill_type="solid")
+                if i < len(shelves):
+                    c2 = ws[f"{col_letter}2"]
+                    c2.value = shelves[i]
+                    c2.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                    c2.font = bold_font
+                    c2.border = border
 
-        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=False), start=3):
-            for c_idx, val in enumerate(row, start=1):
-                ws.cell(row=r_idx, column=c_idx, value=val)
+        # Write headers
+        for col_idx, col in enumerate(df.columns, 1):
+            cell = ws.cell(row=2, column=col_idx, value=col)
+            cell.font = bold_font
+            cell.border = border
+
+        # Write data
+        for row_idx, row in enumerate(df.values, start=3):
+            for col_idx, val in enumerate(row, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                cell.font = bold_font
+                cell.border = border
 
     wb.save(output)
     output.seek(0)
+    return output
 
-    st.download_button(
-        label="📥 Download Formatted Excel File",
-        data=output,
-        file_name="bin_labels_formatted.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+# --- 🖥️ Streamlit UI ---
+st.title("📦 Bin Label Generator")
 
-    st.subheader("🖼️ Bin Layout Diagrams")
-    for group in bay_groups:
-        for bay_id in group['bays']:
-            shelves = group['shelves']
-            bins_per_shelf = group['bins_per_shelf']
-            base_label = bay_id.replace("BAY-", "")
-            base_number = int(base_label[-3:])
-            fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
-            st.pyplot(fig)
+bay_groups = []
+num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
+
+for i in range(num_groups):
+    st.header(f"Bay Group {i+1}")
+    group_name = st.text_input(f"Enter a name for Bay Group {i+1}", key=f"group_name_{i}")
+    bay_input = st.text_area("Enter Bay IDs (one per line)", key=f"bay_input_{i}")
+    shelf_count = st.number_input("Number of shelves (A-Z)", min_value=1, max_value=26, value=3, key=f"shelf_count_{i}")
+
+    shelves = generate_shelf_labels(shelf_count)
+    bins_per_shelf = {}
+    for shelf in shelves:
+        bins = st.number_input(f"Bins in Shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{i}_{shelf}")
+        bins_per_shelf[shelf] = bins
+
+    bay_ids = [b.strip() for b in bay_input.splitlines() if b.strip()]
+    bay_groups.append({
+        "group_name": group_name if group_name else f"Bay Group {i+1}",
+        "bays": bay_ids,
+        "shelves": shelves,
+        "bins_per_shelf": bins_per_shelf
+    })
+
+# Validation
+within_duplicates = {}
+for group in bay_groups:
+    dups = get_duplicates_within(group["bays"])
+    if dups:
+        within_duplicates[group["group_name"]] = dups
+
+across_duplicates = get_duplicates_across(bay_groups)
+
+if st.button("Generate Bin Labels"):
+    if within_duplicates:
+        for group, dups in within_duplicates.items():
+            st.error(f"❌ Duplicated bays found within {group}: {', '.join(dups)}")
+    elif across_duplicates:
+        for bay, groups in across_duplicates.items():
+            st.error(f"❌ Bay ID '{bay}' appears in multiple groups: {', '.join(groups)}")
+    else:
+        st.success("✅ No duplicate bays found. Generating...")
+
+        result_dfs = {}
+        for group in bay_groups:
+            df = generate_bin_labels_table(group["group_name"], group["bays"], group["shelves"], group["bins_per_shelf"])
+            result_dfs[group["group_name"]] = df
+            st.subheader(f"📊 {group['group_name']}")
+            st.dataframe(df)
+
+        excel_data = export_to_excel(result_dfs)
+
+        st.download_button(
+            label="📥 Download Excel File",
+            data=excel_data,
+            file_name="bin_labels.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
