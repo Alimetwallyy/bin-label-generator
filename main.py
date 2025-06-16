@@ -108,6 +108,33 @@ def style_excel(writer, sheet_name, df, shelves):
                 cell.alignment = center_align
                 cell.border = border
 
+def check_duplicate_bay_ids(bay_groups):
+    """Check for duplicate bay IDs within and across bay groups."""
+    all_bay_ids = set()
+    errors = []
+
+    for group_idx, group in enumerate(bay_groups):
+        group_name = group["name"]
+        bay_ids = group["bays"]
+        
+        # Check for duplicates within the group
+        seen_in_group = set()
+        duplicates_in_group = set()
+        for bay_id in bay_ids:
+            if bay_id in seen_in_group:
+                duplicates_in_group.add(bay_id)
+            seen_in_group.add(bay_id)
+        if duplicates_in_group:
+            errors.append(f"⚠️ Duplicate bay IDs found in {group_name}: {', '.join(duplicates_in_group)}")
+
+        # Check for duplicates across groups
+        for bay_id in bay_ids:
+            if bay_id in all_bay_ids:
+                errors.append(f"⚠️ Bay ID {bay_id} is duplicated across multiple groups.")
+            all_bay_ids.add(bay_id)
+
+    return errors
+
 # --- Streamlit App ---
 st.title("📦 Bin Label Generator")
 st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels.")
@@ -129,14 +156,21 @@ for group_idx in range(num_groups):
 
     if bays_input:
         bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
-        bay_groups.append({
-            "name": group_name,
-            "bays": bay_list,
-            "shelves": shelves,
-            "bins_per_shelf": bins_per_shelf
-        })
+        if bay_list:
+            bay_groups.append({
+                "name": group_name,
+                "bays": bay_list,
+                "shelves": shelves,
+                "bins_per_shelf": bins_per_shelf
+            })
 
-if st.button("Generate Bin Labels"):
+# Check for duplicates and display errors
+if bay_groups:
+    duplicate_errors = check_duplicate_bay_ids(bay_groups)
+    for error in duplicate_errors:
+        st.error(error)
+
+if st.button("Generate Bin Labels", disabled=bool(duplicate_errors)):
     if bay_groups:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
