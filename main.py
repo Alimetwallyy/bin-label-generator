@@ -198,8 +198,9 @@ duplicate_errors = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
 
 for group_idx in range(num_groups):
-    with st.expander(f"Bay Group {group_idx + 1}", expanded=True):
-        group_name = st.text_input(f"Group Name", value=f"Bay Group {group_idx + 1}", key=f"group_name_{group_idx}")
+    group_name = st.text_input(f"Group Name", value=f"Bay Group {group_idx + 1}", key=f"group_name_{group_idx}")
+    header = group_name if group_name.strip() else f"Bay Group {group_idx + 1}"
+    with st.expander(header, expanded=True):
         bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
         shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
         shelves = list(string.ascii_uppercase[:shelf_count])
@@ -213,7 +214,7 @@ for group_idx in range(num_groups):
             bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
             if bay_list:
                 bay_groups.append({
-                    "name": group_name,
+                    "name": group_name if group_name.strip() else f"Bay Group {group_idx + 1}",
                     "bays": bay_list,
                     "shelves": shelves,
                     "bins_per_shelf": bins_per_shelf
@@ -224,7 +225,7 @@ for group_idx in range(num_groups):
                         for error in temp_errors:
                             st.warning(error)
             else:
-                st.warning(f"⚠️ No valid bay IDs provided for {group_name}.")
+                st.warning(f"⚠️ No valid bay IDs provided for {header}.")
 
 if bay_groups:
     duplicate_errors = check_duplicate_bay_ids(bay_groups)
@@ -235,8 +236,7 @@ if bay_groups:
         else:
             st.info("No duplicate bay IDs detected.")
 else:
-    st.warning("⚠️ Please define at least one bay group with valid bay IDs."
-)
+    st.warning("⚠️ Please define at least one bay group with valid bay IDs.")
 
 if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_groups)):
     with st.spinner("Generating bin labels and diagrams..."):
