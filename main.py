@@ -198,9 +198,9 @@ duplicate_errors = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
 
 for group_idx in range(num_groups):
-    group_name = st.text_input(f"Group Name", value=f"Bay Group {group_idx + 1}", key=f"group_name_{group_idx}")
-    header = group_name if group_name.strip() else f"Bay Group {group_idx + 1}"
-    with st.expander(header, expanded=True):
+    with st.expander(f"Bay Group {group_idx + 1}", expanded=True):
+        group_name = st.text_input(f"Group Name", value=f"Bay Group {group_idx + 1}", key=f"group_name_{group_idx}")
+        header = group_name if group_name.strip() else f"Bay Group {group_idx + 1}"
         bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
         shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
         shelves = list(string.ascii_uppercase[:shelf_count])
