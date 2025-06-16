@@ -188,28 +188,31 @@ def check_duplicate_bay_ids(bay_groups):
 st.title("📦 Bin Label Generator")
 st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels. Bay IDs must be unique (e.g., BAY-001-001-001).")
 
-# Cache-clear button for debugging
-if st.button("Clear Cache"):
-    st.cache_data.clear()
-    st.success("Cache cleared!")
-
 bay_groups = []
 duplicate_errors = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
 
 for group_idx in range(num_groups):
-    # Initialize session state for group name if not set
+    # Initialize session state for group name
     if f"group_name_{group_idx}" not in st.session_state:
         st.session_state[f"group_name_{group_idx}"] = f"Bay Group {group_idx + 1}"
-    
+
+    # Callback to force rerender on name change
+    def update_group_name(group_idx=group_idx):
+        st.session_state[f"group_name_{group_idx}"] = st.session_state[f"group_name_input_{group_idx}"]
+
     # Use session state for header
-    header = st.session_state[f"group_name_{group_idx}"].strip() if st.session_state[f"group_name_{group_idx}"].strip() else f"Bay Group {group_idx + 1}"
-    
+    header = st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}"
+
     with st.expander(header, expanded=True):
-        # Update session state with text input
-        group_name = st.text_input("Group Name", value=st.session_state[f"group_name_{group_idx}"], key=f"group_name_input_{group_idx}")
-        st.session_state[f"group_name_{group_idx}"] = group_name
-        
+        # Text input with on_change callback
+        st.text_input(
+            "Group Name",
+            value=st.session_state[f"group_name_{group_idx}"],
+            key=f"group_name_input_{group_idx}",
+            on_change=update_group_name
+        )
+
         bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
         shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
         shelves = list(string.ascii_uppercase[:shelf_count])
@@ -223,7 +226,7 @@ for group_idx in range(num_groups):
             bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
             if bay_list:
                 bay_groups.append({
-                    "name": group_name if group_name.strip() else f"Bay Group {group_idx + 1}",
+                    "name": st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}",
                     "bays": bay_list,
                     "shelves": shelves,
                     "bins_per_shelf": bins_per_shelf
