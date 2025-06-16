@@ -83,7 +83,7 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
         showlegend=True,
         legend_title_text="Shelves",
         width=200 * len(shelves),
-        height=100 * max(bins_per_shelf.values()),
+        height=100 * max(bins_per_shelf.values(), default=1),
         margin=dict(l=20, r=20, t=50, b=20),
     )
 
@@ -211,7 +211,6 @@ for group_idx in range(num_groups):
             else:
                 st.warning(f"⚠️ No valid bay IDs provided for {group_name}.")
 
-# Final duplicate check
 if bay_groups:
     duplicate_errors = check_duplicate_bay_ids(bay_groups)
     with st.expander("Duplicate Errors", expanded=bool(duplicate_errors)):
