@@ -114,7 +114,6 @@ def check_duplicate_bay_ids(bay_groups):
     for group_idx, group in enumerate(bay_groups):
         group_name = group["name"]
         bay_ids = [bay_id.strip().upper() for bay_id in group["bays"] if bay_id.strip()]
-        st.write(f"DEBUG: {group_name} bay IDs: {bay_ids}")  # Debug
 
         # Check duplicates within group
         seen_in_group = set()
@@ -134,7 +133,6 @@ def check_duplicate_bay_ids(bay_groups):
         if len(groups) > 1:
             errors.append(f"⚠️ Bay ID '{bay_id}' is duplicated across groups: {', '.join(groups)}.")
 
-    st.write(f"DEBUG: Duplicate errors: {errors}")  # Debug
     return errors
 
 # --- Streamlit App ---
@@ -169,7 +167,7 @@ for group_idx in range(num_groups):
                 # Check duplicates for this group immediately
                 temp_errors = check_duplicate_bay_ids(bay_groups)
                 for error in temp_errors:
-                    st.error(error)
+                    st.warning(error)
             else:
                 st.warning(f"⚠️ No valid bay IDs provided for {group_name}.")
 
@@ -179,7 +177,7 @@ if bay_groups:
     if duplicate_errors:
         st.subheader("Duplicate Errors")
         for error in duplicate_errors:
-            st.error(error)
+            st.warning(error)
 else:
     st.warning("⚠️ Please define at least one bay group with valid bay IDs.")
 
