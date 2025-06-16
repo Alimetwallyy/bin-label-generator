@@ -1,14 +1,13 @@
 import streamlit as st
 import pandas as pd
 import io
-import matplotlib.pyplot as plt
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 
 st.set_page_config(page_title="Bin Label Generator", layout="wide")
 
-# --- 🧠 Helper Functions ---
+# --- Helper Functions ---
 def generate_shelf_labels(count):
     return [chr(i) for i in range(ord('A'), ord('A') + count)]
 
@@ -38,22 +37,23 @@ def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
     for bay in bay_ids:
         base_label = bay.replace("BAY-", "")
         base_number = int(base_label[-3:])
-        max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves)
-
-        for i in range(max_bins):
+        for i in range(max(bins_per_shelf.get(shelf, 0) for shelf in shelves)):
             row = {
                 'BAY TYPE': group_name,
                 'AISLE': extract_aisle_number(bay),
                 'BAY ID': bay
             }
+            valid_shelf = False
             for shelf in shelves:
                 shelf_bin_count = bins_per_shelf.get(shelf, 0)
                 if i < shelf_bin_count:
                     bin_label = base_label[:-4] + shelf + f"{base_number + i:03d}"
                     row[shelf] = bin_label
+                    valid_shelf = True
                 else:
                     row[shelf] = None
-            data.append(row)
+            if valid_shelf:
+                data.append(row)
     return pd.DataFrame(data)
 
 def export_to_excel(grouped_dfs):
@@ -70,10 +70,10 @@ def export_to_excel(grouped_dfs):
         ws = wb.create_sheet(title=group_name)
 
         shelves = [col for col in df.columns if col not in ['BAY TYPE', 'AISLE', 'BAY ID']]
-        has_shelves = len(shelves) > 0
+        valid_shelves = [shelf for shelf in shelves if df[shelf].notna().any()]
+        has_shelves = len(valid_shelves) > 0
 
         if has_shelves:
-            # ABC1 cell
             ws.merge_cells('A1:C1')
             cell = ws['A1']
             cell.value = "HEX COLOR CODES ->"
@@ -82,27 +82,25 @@ def export_to_excel(grouped_dfs):
 
             for i, color in enumerate(hex_colors):
                 col_letter = get_column_letter(4 + i)
-                c = ws[f"{col_letter}1"]
-                c.value = color
-                c.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-                c.font = bold_font
-                c.border = border
+                if i < len(valid_shelves):
+                    c1 = ws[f"{col_letter}1"]
+                    c1.value = color
+                    c1.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                    c1.font = bold_font
+                    c1.border = border
 
-                if i < len(shelves):
                     c2 = ws[f"{col_letter}2"]
-                    c2.value = shelves[i]
+                    c2.value = valid_shelves[i]
                     c2.fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
                     c2.font = bold_font
                     c2.border = border
 
-        # Write headers
-        for col_idx, col in enumerate(df.columns, 1):
+        for col_idx, col in enumerate(['BAY TYPE', 'AISLE', 'BAY ID'] + valid_shelves, 1):
             cell = ws.cell(row=2, column=col_idx, value=col)
             cell.font = bold_font
             cell.border = border
 
-        # Write data
-        for row_idx, row in enumerate(df.values, start=3):
+        for row_idx, row in enumerate(df[['BAY TYPE', 'AISLE', 'BAY ID'] + valid_shelves].values, start=3):
             for col_idx, val in enumerate(row, 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=val)
                 cell.font = bold_font
@@ -112,7 +110,7 @@ def export_to_excel(grouped_dfs):
     output.seek(0)
     return output
 
-# --- 🖥️ Streamlit UI ---
+# --- Streamlit UI ---
 st.title("📦 Bin Label Generator")
 
 bay_groups = []
@@ -138,7 +136,6 @@ for i in range(num_groups):
         "bins_per_shelf": bins_per_shelf
     })
 
-# Validation
 within_duplicates = {}
 for group in bay_groups:
     dups = get_duplicates_within(group["bays"])
