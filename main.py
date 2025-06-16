@@ -233,11 +233,10 @@ for group_idx in range(num_groups):
                 })
                 temp_errors = check_duplicate_bay_ids(bay_groups)
                 if temp_errors:
-                    with st.expander("Errors in this group", expanded=True):
+                    with st.container():
+                        st.markdown("**Errors in this group:**")
                         for error in temp_errors:
                             st.warning(error)
-            else:
-                st.warning(f"⚠️ No valid bay IDs provided for {header}.")
 
 if bay_groups:
     duplicate_errors = check_duplicate_bay_ids(bay_groups)
