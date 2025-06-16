@@ -4,10 +4,48 @@ import io
 import plotly.graph_objects as go
 import seaborn as sns
 import string
+import re
+import plotly.io as pio
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
+
+# Custom CSS for improved UI
+st.markdown("""
+    <style>
+    .stTextInput > div > div > input {
+        border: 1px solid #ccc;
+    }
+    .stTextInput > div > div > input.invalid {
+        border: 2px solid red;
+    }
+    .stTextArea > div > div > textarea {
+        border: 1px solid #ccc;
+    }
+    .stTextArea > div > div > textarea.invalid {
+        border: 2px solid red;
+    }
+    .stContainer > div {
+        padding: 10px;
+        border-radius: 5px;
+    }
+    .error-container {
+        background-color: #fff5f5;
+        border: 1px solid #ffcccc;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+    }
+    .stButton > button {
+        margin-right: 10px;
+    }
+    label {
+        font-weight: bold;
+        color: #333;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
     data = []
@@ -184,60 +222,154 @@ def check_duplicate_bay_ids(bay_groups):
 
     return errors
 
+def validate_bay_ids(bay_ids):
+    pattern = r'^BAY-\d{3}-\d{3}-\d{3}$'
+    invalid_ids = []
+    for bay_id in bay_ids:
+        if not re.match(pattern, bay_id.strip()):
+            invalid_ids.append(bay_id.strip())
+    return invalid_ids
+
 # --- Streamlit App ---
 st.title("📦 Bin Label Generator")
-st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels. Bay IDs must be unique (e.g., BAY-001-001-001).")
+st.markdown("Define bay groups, shelves, and bins to generate bin labels. Bay IDs must be unique (e.g., BAY-001-001-001).")
+
+# Toggle for showing all diagrams
+if 'show_all_diagrams' not in st.session_state:
+    st.session_state['show_all_diagrams'] = False
 
 bay_groups = []
 duplicate_errors = []
-num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
+num_groups = st.number_input(
+    "How many bay groups do you want to define?",
+    min_value=1,
+    max_value=10,
+    value=1,
+    help="Select the number of bay groups to configure."
+)
 
 for group_idx in range(num_groups):
-    # Initialize session state for group name
+    # Initialize session state
     if f"group_name_{group_idx}" not in st.session_state:
         st.session_state[f"group_name_{group_idx}"] = f"Bay Group {group_idx + 1}"
+    if f"bays_{group_idx}" not in st.session_state:
+        st.session_state[f"bays_{group_idx}"] = ""
+    if f"shelf_count_{group_idx}" not in st.session_state:
+        st.session_state[f"shelf_count_{group_idx}"] = 3
+    for shelf in string.ascii_uppercase[:st.session_state[f"shelf_count_{group_idx}"]]:
+        if f"bins_{group_idx}_{shelf}" not in st.session_state:
+            st.session_state[f"bins_{group_idx}_{shelf}"] = 5
 
-    # Callback to force rerender on name change
+    # Reset group callback
+    def reset_group(group_idx=group_idx):
+        st.session_state[f"group_name_{group_idx}"] = f"Bay Group {group_idx + 1}"
+        st.session_state[f"bays_{group_idx}"] = ""
+        st.session_state[f"shelf_count_{group_idx}"] = 3
+        for shelf in string.ascii_uppercase[:26]:
+            if f"bins_{group_idx}_{shelf}" in st.session_state:
+                st.session_state[f"bins_{group_idx}_{shelf}"] = 5
+
+    # Update group name callback
     def update_group_name(group_idx=group_idx):
         st.session_state[f"group_name_{group_idx}"] = st.session_state[f"group_name_input_{group_idx}"]
 
-    # Use session state for header
+    # Header
     header = st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}"
 
     with st.expander(header, expanded=True):
-        # Text input with on_change callback
+        # Group name input
         st.text_input(
             "Group Name",
             value=st.session_state[f"group_name_{group_idx}"],
             key=f"group_name_input_{group_idx}",
-            on_change=update_group_name
+            on_change=update_group_name,
+            help="Enter a name for this bay group (e.g., Warehouse A)."
         )
 
-        bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
-        shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
+        # File uploader for bay IDs
+        uploaded_file = st.file_uploader(
+            f"Upload bay IDs (CSV or TXT, one per line)",
+            type=["csv", "txt"],
+            key=f"file_uploader_{group_idx}",
+            help="Upload a CSV (single column) or TXT file with bay IDs like BAY-001-001-001."
+        )
+        if uploaded_file:
+            if uploaded_file.type == "text/csv":
+                df = pd.read_csv(uploaded_file, header=None)
+                bay_ids = df.iloc[:, 0].dropna().astype(str).tolist()
+            else:  # TXT
+                bay_ids = uploaded_file.read().decode("utf-8").splitlines()
+            bay_ids = [bid.strip() for bid in bay_ids if bid.strip()]
+            st.session_state[f"bays_{group_idx}"] = "\n".join(bay_ids)
+
+        # Bay IDs input
+        bays_input = st.text_area(
+            "Enter bay IDs (one per line, e.g., BAY-001-001-001)",
+            value=st.session_state[f"bays_{group_idx}"],
+            key=f"bays_{group_idx}",
+            help="Enter unique bay IDs in the format BAY-XXX-XXX-XXX."
+        )
+        bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
+        
+        # Validate bay IDs
+        if bay_list:
+            invalid_ids = validate_bay_ids(bay_list)
+            if invalid_ids:
+                st.markdown(
+                    f'<style>textarea[key="bays_{group_idx}"] {{ border: 2px solid red; }}</style>',
+                    unsafe_allow_html=True
+                )
+                st.error(f"Invalid bay IDs: {', '.join(invalid_ids)}. Use format BAY-XXX-XXX-XXX (e.g., BAY-001-001-001).")
+            else:
+                st.markdown(
+                    f'<style>textarea[key="bays_{group_idx}"] {{ border: 1px solid #ccc; }}</style>',
+                    unsafe_allow_html=True
+                )
+
+        # Shelf and bin inputs
+        shelf_count = st.number_input(
+            "How many shelves?",
+            min_value=1,
+            max_value=26,
+            value=st.session_state[f"shelf_count_{group_idx}"],
+            key=f"shelf_count_{group_idx}",
+            help="Select the number of shelves (A-Z)."
+        )
         shelves = list(string.ascii_uppercase[:shelf_count])
 
         bins_per_shelf = {}
         for shelf in shelves:
-            count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
+            count = st.number_input(
+                f"Number of bins in shelf {shelf}",
+                min_value=1,
+                max_value=100,
+                value=st.session_state[f"bins_{group_idx}_{shelf}"],
+                key=f"bins_{group_idx}_{shelf}",
+                help=f"Set the number of bins for shelf {shelf}."
+            )
             bins_per_shelf[shelf] = count
 
-        if bays_input:
-            bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
-            if bay_list:
-                bay_groups.append({
-                    "name": st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}",
-                    "bays": bay_list,
-                    "shelves": shelves,
-                    "bins_per_shelf": bins_per_shelf
-                })
-                temp_errors = check_duplicate_bay_ids(bay_groups)
-                if temp_errors:
-                    with st.container():
-                        st.markdown("**Errors in this group:**")
-                        for error in temp_errors:
-                            st.warning(error)
+        # Reset button
+        if st.button("Reset Group", key=f"reset_{group_idx}"):
+            reset_group()
 
+        # Duplicate check
+        if bay_list and not invalid_ids:
+            bay_groups.append({
+                "name": st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}",
+                "bays": bay_list,
+                "shelves": shelves,
+                "bins_per_shelf": bins_per_shelf
+            })
+            temp_errors = check_duplicate_bay_ids(bay_groups)
+            if temp_errors:
+                with st.container():
+                    st.markdown('<div class="error-container">**Errors in this group:**</div>', unsafe_allow_html=True)
+                    for error in temp_errors:
+                        st.warning(error)
+            bay_groups.pop()  # Remove for global check later
+
+# Global duplicate errors
 if bay_groups:
     duplicate_errors = check_duplicate_bay_ids(bay_groups)
     with st.expander("Duplicate Errors", expanded=bool(duplicate_errors)):
@@ -249,8 +381,14 @@ if bay_groups:
 else:
     st.warning("⚠️ Please define at least one bay group with valid bay IDs.")
 
-if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_groups)):
+# Generate button
+if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_groups or any(validate_bay_ids(group["bays"]) for group in bay_groups))):
     with st.spinner("Generating bin labels and diagrams..."):
+        progress_bar = st.progress(0)
+        total_steps = sum(len(group["bays"]) for group in bay_groups) + len(bay_groups)  # Excel + diagrams
+        current_step = 0
+
+        # Excel generation
         output = io.BytesIO()
         try:
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -259,6 +397,8 @@ if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_gr
                     if not df.empty:
                         df.to_excel(writer, index=False, startrow=1, sheet_name=group["name"])
                         style_excel(writer, group["name"], df, group["shelves"])
+                    current_step += 1
+                    progress_bar.progress(min(current_step / total_steps, 1.0))
             output.seek(0)
 
             st.success("✅ Bin labels generated successfully!")
@@ -268,19 +408,35 @@ if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_gr
                 file_name="bin_labels.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
-            st.subheader("🖼️ Interactive Bin Layout Diagrams")
-            for group in bay_groups:
-                for bay_id in group['bays']:
-                    shelves = group['shelves']
-                    bins_per_shelf = group['bins_per_shelf']
-                    try:
-                        base_label = bay_id.replace("BAY-", "")
-                        base_number = int(base_label[-3:])
-                        fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
-                        if fig:
-                            st.plotly_chart(fig, use_container_width=True)
-                    except Exception as e:
-                        st.error(f"Error processing bay ID '{bay_id}': {str(e)}")
         except Exception as e:
-            st.error(f"Error generating output: {str(e)}")
+            st.error(f"Error generating Excel: {str(e)}")
+
+        # Diagram generation
+        st.subheader("🖼️ Interactive Bin Layout Diagrams")
+        if st.button("Toggle All Diagrams", key="toggle_diagrams"):
+            st.session_state['show_all_diagrams'] = not st.session_state['show_all_diagrams']
+
+        for group in bay_groups:
+            for bay_id in group['bays']:
+                shelves = group['shelves']
+                bins_per_shelf = group['bins_per_shelf']
+                try:
+                    base_label = bay_id.replace("BAY-", "")
+                    base_number = int(base_label[-3:])
+                    fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
+                    if fig:
+                        with st.expander(f"Diagram for {bay_id}", expanded=st.session_state['show_all_diagrams']):
+                            st.plotly_chart(fig, use_container_width=True)
+                            # PNG download
+                            img_bytes = pio.to_image(fig, format="png")
+                            st.download_button(
+                                label="📷 Download Diagram as PNG",
+                                data=img_bytes,
+                                file_name=f"bin_layout_{bay_id}.png",
+                                mime="image/png",
+                                key=f"download_png_{bay_id}"
+                            )
+                    current_step += 1
+                    progress_bar.progress(min(current_step / total_steps, 1.0))
+                except Exception as e:
+                    st.error(f"Error processing bay ID '{bay_id}': {str(e)}")
