@@ -198,9 +198,18 @@ duplicate_errors = []
 num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1)
 
 for group_idx in range(num_groups):
-    with st.expander(f"Bay Group {group_idx + 1}", expanded=True):
-        group_name = st.text_input(f"Group Name", value=f"Bay Group {group_idx + 1}", key=f"group_name_{group_idx}")
-        header = group_name if group_name.strip() else f"Bay Group {group_idx + 1}"
+    # Initialize session state for group name if not set
+    if f"group_name_{group_idx}" not in st.session_state:
+        st.session_state[f"group_name_{group_idx}"] = f"Bay Group {group_idx + 1}"
+    
+    # Use session state for header
+    header = st.session_state[f"group_name_{group_idx}"].strip() if st.session_state[f"group_name_{group_idx}"].strip() else f"Bay Group {group_idx + 1}"
+    
+    with st.expander(header, expanded=True):
+        # Update session state with text input
+        group_name = st.text_input("Group Name", value=st.session_state[f"group_name_{group_idx}"], key=f"group_name_input_{group_idx}")
+        st.session_state[f"group_name_{group_idx}"] = group_name
+        
         bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
         shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
         shelves = list(string.ascii_uppercase[:shelf_count])
