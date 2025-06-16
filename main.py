@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-import plotly.graph_objects as go
-import seaborn as sns
+import matplotlib.pyplot as plt
 import string
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
@@ -35,68 +34,26 @@ def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
     return pd.DataFrame(data)
 
 def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
-    fig = go.Figure()
-    colors = sns.color_palette("colorblind", len(shelves)).as_hex()
-    shelf_colors = {shelf: colors[i] for i, shelf in enumerate(shelves)}
+    fig, ax = plt.subplots(figsize=(len(shelves) * 2, max(bins_per_shelf.values()) * 0.6))
+    ax.set_title(f"Bin Layout for {bay_id}", fontsize=14)
+    ax.axis('off')
+
+    colors = ['lightblue', 'lightgreen', 'salmon', 'khaki', 'plum', 'coral', 'lightpink', 'wheat']
+    shelf_colors = {shelf: colors[i % len(colors)] for i, shelf in enumerate(shelves)}
 
     for col_idx, shelf in enumerate(shelves):
         shelf_bins = bins_per_shelf.get(shelf, 0)
         for i in range(shelf_bins):
             bin_label = bay_id.replace("BAY-", "")[:-4] + shelf + f"{base_number + i:03d}"
-            x0, x1 = col_idx - 0.4, col_idx + 0.4
-            y0, y1 = -i - 0.4, -i + 0.4
-            fig.add_shape(
-                type="rect",
-                x0=x0,
-                x1=x1,
-                y0=y0,
-                y1=y1,
-                fillcolor=shelf_colors[shelf],
-                line=dict(color="black"),
-                label=dict(text=bin_label, textposition="middle center", font=dict(size=10)),
-            )
-            fig.add_trace(
-                go.Scatter(
-                    x=[(x0 + x1) / 2],
-                    y=[(y0 + y1) / 2],
-                    text=[bin_label],
-                    mode="text",
-                    hoverinfo="text",
-                    showlegend=False,
-                )
-            )
+            x = col_idx
+            y = -i
+            ax.text(x, y, bin_label, va='center', ha='center', fontsize=8,
+                    bbox=dict(boxstyle="round,pad=0.3", edgecolor='black', facecolor=shelf_colors[shelf]))
 
-    fig.update_layout(
-        title=f"Bin Layout for {bay_id}",
-        xaxis=dict(
-            tickmode="array",
-            tickvals=list(range(len(shelves))),
-            ticktext=shelves,
-            showgrid=False,
-            zeroline=False,
-        ),
-        yaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            autorange="reversed",
-        ),
-        showlegend=True,
-        legend_title_text="Shelves",
-        width=200 * len(shelves),
-        height=100 * max(bins_per_shelf.values(), default=1),
-        margin=dict(l=20, r=20, t=50, b=20),
-    )
-
-    for shelf in shelves:
-        fig.add_trace(
-            go.Scatter(
-                x=[None],
-                y=[None],
-                mode="markers",
-                name=shelf,
-                marker=dict(size=10, color=shelf_colors[shelf]),
-            )
-        )
+    ax.set_xlim(-0.5, len(shelves) - 0.5)
+    ax.set_ylim(-max(bins_per_shelf.values()), 1)
+    ax.set_xticks(range(len(shelves)))
+    ax.set_xticklabels(shelves)
 
     return fig
 
@@ -150,24 +107,28 @@ def style_excel(writer, sheet_name, df, shelves):
                 cell.border = border
 
 def check_duplicate_bay_ids(bay_groups):
+    """Check for duplicate bay IDs within and across bay groups."""
     errors = []
-    all_bay_ids = {}
+    all_bay_ids = {}  # Tracks bay ID to group name(s)
 
     for group_idx, group in enumerate(bay_groups):
         group_name = group["name"]
         bay_ids = [bay_id.strip().upper() for bay_id in group["bays"] if bay_id.strip()]
 
+        # Check duplicates within group
         seen_in_group = set()
         for bay_id in bay_ids:
             if bay_id in seen_in_group:
                 errors.append(f"⚠️ Duplicate bay ID '{bay_id}' found in {group_name}.")
             seen_in_group.add(bay_id)
 
+            # Track across groups
             if bay_id not in all_bay_ids:
                 all_bay_ids[bay_id] = [group_name]
             elif group_name not in all_bay_ids[bay_id]:
                 all_bay_ids[bay_id].append(group_name)
 
+    # Check duplicates across groups
     for bay_id, groups in all_bay_ids.items():
         if len(groups) > 1:
             errors.append(f"⚠️ Bay ID '{bay_id}' is duplicated across groups: {', '.join(groups)}.")
@@ -203,22 +164,20 @@ for group_idx in range(num_groups):
                     "shelves": shelves,
                     "bins_per_shelf": bins_per_shelf
                 })
+                # Check duplicates for this group immediately
                 temp_errors = check_duplicate_bay_ids(bay_groups)
-                if temp_errors:
-                    with st.expander("Errors in this group", expanded=True):
-                        for error in temp_errors:
-                            st.warning(error)
+                for error in temp_errors:
+                    st.warning(error)
             else:
                 st.warning(f"⚠️ No valid bay IDs provided for {group_name}.")
 
+# Final duplicate check
 if bay_groups:
     duplicate_errors = check_duplicate_bay_ids(bay_groups)
-    with st.expander("Duplicate Errors", expanded=bool(duplicate_errors)):
-        if duplicate_errors:
-            for error in duplicate_errors:
-                st.warning(error)
-        else:
-            st.info("No duplicate bay IDs detected.")
+    if duplicate_errors:
+        st.subheader("Duplicate Errors")
+        for error in duplicate_errors:
+            st.warning(error)
 else:
     st.warning("⚠️ Please define at least one bay group with valid bay IDs.")
 
@@ -241,7 +200,7 @@ if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_gr
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-            st.subheader("🖼️ Interactive Bin Layout Diagrams")
+            st.subheader("🖼️ Bin Layout Diagrams")
             for group in bay_groups:
                 for bay_id in group['bays']:
                     shelves = group['shelves']
@@ -249,6 +208,6 @@ if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_gr
                     base_label = bay_id.replace("BAY-", "")
                     base_number = int(base_label[-3:])
                     fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.pyplot(fig)
         except Exception as e:
             st.error(f"⚠️ Error generating output: {str(e)}")
