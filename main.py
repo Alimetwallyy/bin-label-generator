@@ -53,8 +53,7 @@ def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
         try:
             base_label = bay.replace("BAY-", "")
             base_number = int(base_label[-3:])
-            aisle_match = re.search(r'\d{3}', base_label)
-            aisle = aisle_match.group(0) if aisle_match else ""
+            aisle = base_label[9:12] if len(base_label) >= 12 else ""
 
             max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves) if shelves else 1
 
