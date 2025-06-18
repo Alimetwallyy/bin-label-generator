@@ -216,7 +216,7 @@ def check_duplicate_bin_ids(bay_groups):
         for bin_id in bin_ids:
             if bin_id in seen_in_group:
                 errors.append(f"⚠️ Duplicate bin ID '{bin_id}' found in {group_name}.")
-            seen_in_group.add(bin_id)
+            seen_in_group.add(bay_id)
 
             if bin_id not in all_bin_ids:
                 all_bin_ids[bin_id] = [group_name]
@@ -283,7 +283,7 @@ with tab1:
             st.session_state[f"group_name_{group_idx}"] = st.session_state[f"group_name_input_{group_idx}"]
 
         # Use session state for header
-        header = st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}"
+        header = st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1"
 
         with st.expander(header, expanded=True):
             # Text input with on_change callback
@@ -371,15 +371,11 @@ with tab2:
     st.header("Bin Bay Mapping")
     st.markdown("Define bay definition groups and map bin IDs to bay types.")
 
-    # List of bay types for dropdown
+    # List of unique bay types for dropdown
     bay_types = [
-        "Bulk Stock", "Case Flow", "Drawer", "Flat Apparel", "Hanger Rod", "Jewelry",
-        "Library", "Library Deep", "Pallet", "Pallet", "Pallet", "Pallet", "Shoes",
-        "Bulk Stock", "Flat Apparel", "Flat Apparel", "Hanger Rod", "Hanger Rod",
-        "Hangers", "Jewelry", "Library", "Library", "Library", "Library", "Library",
-        "Library Deep", "Library Deep", "Library Deep", "Library Deep", "Library Deep",
-        "Library Deep", "Library Deep", "Library Deep", "Library Deep", "Random Other Bin",
-        "Random Other Bin", "PassThrough", "PassThrough"
+        "Bulk Stock", "Case Flow", "Drawer", "Flat Apparel", "Hanger Rod", "Hangers",
+        "Jewelry", "Library", "Library Deep", "Pallet", "Shoes", "Random Other Bin",
+        "PassThrough"
     ]
 
     num_groups = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=10, value=1, key="num_groups_bin_mapping")
@@ -395,7 +391,7 @@ with tab2:
             st.session_state[f"bin_group_name_{group_idx}"] = st.session_state[f"bin_group_name_input_{group_idx}"]
 
         # Use session state for header
-        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
+        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1"
 
         with st.expander(header, expanded=True):
             # Text input for group name
