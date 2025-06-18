@@ -204,6 +204,60 @@ def check_duplicate_bay_ids(bay_groups):
 
     return errors
 
+def check_duplicate_bin_ids(bay_groups):
+    errors = []
+    all_bin_ids = {}
+
+    for group_idx, group in enumerate(bay_groups):
+        group_name = group["name"]
+        bin_ids = [bin_id.strip().upper() for bin_id in group["bin_ids"] if bin_id.strip()]
+
+        seen_in_group = set()
+        for bin_id in bin_ids:
+            if bin_id in seen_in_group:
+                errors.append(f"⚠️ Duplicate bin ID '{bin_id}' found in {group_name}.")
+            seen_in_group.add(bin_id)
+
+            if bin_id not in all_bin_ids:
+                all_bin_ids[bin_id] = [group_name]
+            elif group_name not in all_bin_ids[bin_id]:
+                all_bin_ids[bin_id].append(group_name)
+
+    for bin_id, groups in all_bin_ids.items():
+        if len(groups) > 1:
+            errors.append(f"⚠️ Bin ID '{bin_id}' is duplicated across groups: {', '.join(groups)}.")
+
+    return errors
+
+def parse_bay_definition(bay_definition):
+    try:
+        # Extract dimensions using regex: e.g., "250x253x120cm"
+        match = re.match(r'^(\d+)x(\d+)x(\d+)cm', bay_definition)
+        if not match:
+            raise ValueError("Invalid dimension format. Expected 'HxWxDcm' (e.g., '250x253x120cm').")
+
+        height_cm = float(match.group(1))
+        width_cm = float(match.group(2))
+        depth_cm = float(match.group(3))
+
+        # Convert cm to inches (1 cm = 0.393701 inches)
+        cm_to_inch = 0.393701
+        height_inch = round(height_cm * cm_to_inch, 2)
+        width_inch = round(width_cm * cm_to_inch, 2)
+        depth_inch = round(depth_cm * cm_to_inch, 2)
+
+        # Format depth for bin_size
+        bin_size = f"{int(depth_cm)}Deep"
+
+        return {
+            "height_inch": height_inch,
+            "width_inch": width_inch,
+            "depth_inch": depth_inch,
+            "bin_size": bin_size
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 # --- Streamlit App ---
 st.title("Space Launch Quick Tools")
 st.markdown("A collection of tools for space launch operations.")
@@ -397,5 +451,62 @@ with tab2:
                         "bay_definition": bay_definition,
                         "bin_type": bin_type
                     })
+                    temp_errors = check_duplicate_bin_ids(bay_groups)
+                    if temp_errors:
+                        with st.container():
+                            st.markdown("**Errors in this group:**")
+                            for error in temp_errors:
+                                st.warning(error)
 
-    st.info("Inputs defined. Next steps: specify processing logic and outputs for Bin Bay Mapping.")
+    if bay_groups:
+        duplicate_errors = check_duplicate_bin_ids(bay_groups)
+        with st.expander("Duplicate Errors", expanded=bool(duplicate_errors)):
+            if duplicate_errors:
+                for error in duplicate_errors:
+                    st.warning(error)
+            else:
+                st.info("No duplicate bin IDs detected.")
+    else:
+        st.warning("⚠️ Please define at least one bay definition group with valid bin IDs.")
+
+    if st.button("Generate Excel", disabled=bool(duplicate_errors or not bay_groups), key="generate_bin_mapping_excel"):
+        with st.spinner("Generating Excel file..."):
+            output = io.BytesIO()
+            try:
+                data = []
+                for group in bay_groups:
+                    bay_def = group["bay_definition"]
+                    parsed = parse_bay_definition(bay_def)
+                    if "error" in parsed:
+                        st.error(f"Invalid bay definition in {group['name']}: {parsed['error']}")
+                        break
+
+                    for bin_id in group["bin_ids"]:
+                        data.append({
+                            "ScannableId": bin_id,
+                            "Distance Index": None,
+                            "Depth(inch)": parsed["depth_inch"],
+                            "Width(inch)": parsed["width_inch"],
+                            "Height(inch)": parsed["height_inch"],
+                            "Zone": None,
+                            "Bay Definition": bay_def,
+                            "bin_size": parsed["bin_size"],
+                            "bin_type": group["bin_type"],
+                            "bay_usage": None
+                        })
+                else:  # Execute if no break (i.e., no errors)
+                    df = pd.DataFrame(data)
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False, sheet_name="Bin Bay Mapping")
+                    output.seek(0)
+
+                    st.success("✅ Excel file generated successfully!")
+                    st.download_button(
+                        label="📥 Download Excel File",
+                        data=output,
+                        file_name="bin_bay_mapping.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="download_bin_mapping_excel"
+                    )
+            except Exception as e:
+                st.error(f"Error generating Excel: {str(e)}")
