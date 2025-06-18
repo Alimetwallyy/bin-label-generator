@@ -373,11 +373,11 @@ with tab2:
             # Text area for bin IDs
             bin_ids_input = st.text_area(f"Enter bin IDs (one per line, e.g., BIN-001-001-001)", key=f"bin_ids_{group_idx}")
 
-            # Text input for comment (max 48 chars)
-            comment = st.text_input(
-                "Comment (max 48 chars)",
+            # Text input for bay definition (max 48 chars)
+            bay_definition = st.text_input(
+                "Enter Bay Definition",
                 max_chars=48,
-                key=f"bin_comment_{group_idx}"
+                key=f"bay_definition_{group_idx}"
             )
 
             # Dropdown for bin type
@@ -394,7 +394,7 @@ with tab2:
                     bay_groups.append({
                         "name": st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}",
                         "bin_ids": bin_list,
-                        "comment": comment,
+                        "bay_definition": bay_definition,
                         "bin_type": bin_type
                     })
 
