@@ -380,7 +380,7 @@ with tab2:
 
     # List of bay usage options for dropdown
     bay_usage_options = [
-        "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
+        "*","45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
         "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book",
         "Chilled", "Chilled-FMP", "Corrosive", "Damage", "Damage Human Food",
         "Damage Pet Food", "Damage_HRV", "Damaged Aerosol", "Damaged Corrosive",
