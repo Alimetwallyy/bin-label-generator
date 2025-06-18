@@ -369,35 +369,17 @@ with tab1:
 
 with tab2:
     st.header("Bin Bay Mapping")
-    st.markdown("Define bay definition groups and map bin IDs to bin types.")
+    st.markdown("Define bay definition groups and map bin IDs to bay types.")
 
-    # List of bin types for dropdown
-    bin_types = [
-        "10_INCH_BIN", "11-KIVA-DEEP", "12-KIVA-DEEP", "13-KIVA-DEEP", "14-KIVA-DEEP",
-        "14_INCH_BIN", "16-KIVA-DEEP", "17-KIVA-DEEP", "18-KIVA-DEEP", "18-TRANS-SORT",
-        "18.5-KIVA-DEEP", "20-KIVA-DEEP", "20_INCH_BIN", "24-KIVA-DEEP", "24-TRANS-SORT",
-        "24_INCH_BIN", "30-KIVA-DEEP", "34-KIVA-DEEP", "4-PALLET", "4-PALLET-MATTRESS",
-        "4-PALLET-MATTRESS-OP", "4-PALLET-OP", "4-PASS-THROUGH", "4-RAINBOW",
-        "4-RAINBOW-MATTRESS", "4-RAINBOW-MATTRESS-OP", "4-RAINBOW-OP", "4-RAINBOW-TOWER",
-        "48-KIVA-DEEP", "48-KIVA-XL", "6-KIVA-DEEP", "6-PALLET", "6-PALLET-MATTRESS",
-        "6-PALLET-MATTRESS-OP", "6-PALLET-OP", "6-PASS-THROUGH", "6-RAINBOW",
-        "6-RAINBOW-MATTRESS", "6-RAINBOW-MATTRESS-OP", "6-RAINBOW-OP", "78-KIVA-TALL",
-        "8-PALLET", "9-KIVA-DEEP", "ALCOHOLIC-DRINKS", "BAGGED-SHOE", "BARREL",
-        "BAT-BIN", "BIN-STICKERED-TOTE", "BOOK-LARGE", "BOOK-MEDIUM", "BOOK-SMALL",
-        "BULK-RACK", "BULK-STOCK", "CANTILEVER", "CASE-FLOW", "CLAMPABLE-BULK-STOCK",
-        "DRAWER", "EIGHTH-PALLET", "FLAT-APPAREL", "FLAT_APPAREL_DRAWER", "FLOOR-PALLET",
-        "FULL-SHELF", "FURNITURE", "GROCERIES", "GROCERIES-LARGE", "GROCERIES-MEDIUM",
-        "GROCERIES-PALLET", "GROCERIES-SMALL", "HALF-PALLET", "HALF-VERTICAL",
-        "HANGER-ROD", "HOOK", "JEWELRY", "LADDER", "LARGE-APPAREL", "LARGE-SHOES",
-        "LIBRARY", "LIBRARY-DEEP", "LIBRARY-DIRECTED", "LIBRARY_DEEP_DRAWER",
-        "LIBRARY_DRAWER", "MATTRESS", "MEAT", "MEDICAL", "MEDIUM-SHOES", "NETTED-BAGGED",
-        "NON-CLAMPABLE-BULK-STOCK", "PALLET-DOUBLE", "PALLET-SINGLE", "PALLET-VERTICAL",
-        "PALLET_RACK", "PASS-THROUGH", "PASS-THROUGH-BULKY", "PET-LARGE", "PET-MEDIUM",
-        "PET-PALLET", "PET-SMALL", "PRODUCE", "QUARTER-PALLET", "RAINBOW",
-        "RAINBOW-HALF-VERTICAL", "RAINBOW-VERTICAL", "RANDOM-OTHER", "REACH_IN",
-        "RIVET-SHELVING", "RUG", "SHOES", "SMALL-APPAREL", "SMALL-SHOES",
-        "STEEL-SHELVING", "TASRS-SLOT", "TIER-RACK", "TOTE-BIN", "VERTICAL",
-        "VNA-RACKING", "WET_PRODUCE"
+    # List of bay types for dropdown
+    bay_types = [
+        "Bulk Stock", "Case Flow", "Drawer", "Flat Apparel", "Hanger Rod", "Jewelry",
+        "Library", "Library Deep", "Pallet", "Pallet", "Pallet", "Pallet", "Shoes",
+        "Bulk Stock", "Flat Apparel", "Flat Apparel", "Hanger Rod", "Hanger Rod",
+        "Hangers", "Jewelry", "Library", "Library", "Library", "Library", "Library",
+        "Library Deep", "Library Deep", "Library Deep", "Library Deep", "Library Deep",
+        "Library Deep", "Library Deep", "Library Deep", "Library Deep", "Random Other Bin",
+        "Random Other Bin", "PassThrough", "PassThrough"
     ]
 
     num_groups = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=10, value=1, key="num_groups_bin_mapping")
@@ -434,12 +416,20 @@ with tab2:
                 key=f"bay_definition_{group_idx}"
             )
 
-            # Dropdown for bin type
-            bin_type = st.selectbox(
-                "Select Bin Type",
-                options=bin_types,
-                index=0,  # Default to 10_INCH_BIN
-                key=f"bin_type_{group_idx}"
+            # Dropdown for bay type
+            bay_type = st.selectbox(
+                "Select Bay Type",
+                options=bay_types,
+                index=0,  # Default to Bulk Stock
+                key=f"bay_type_{group_idx}"
+            )
+
+            # Description and text input for zone
+            st.markdown("Enter Zone bins are inside followed by depth of bays. ex: Library (30D)")
+            zone = st.text_input(
+                "Zone",
+                max_chars=25,
+                key=f"zone_{group_idx}"
             )
 
             if bin_ids_input:
@@ -449,7 +439,8 @@ with tab2:
                         "name": st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}",
                         "bin_ids": bin_list,
                         "bay_definition": bay_definition,
-                        "bin_type": bin_type
+                        "bay_type": bay_type,
+                        "zone": zone
                     })
                     temp_errors = check_duplicate_bin_ids(bay_groups)
                     if temp_errors:
@@ -488,10 +479,10 @@ with tab2:
                             "Depth(inch)": parsed["depth_inch"],
                             "Width(inch)": parsed["width_inch"],
                             "Height(inch)": parsed["height_inch"],
-                            "Zone": None,
+                            "Zone": group["zone"],
                             "Bay Definition": bay_def,
                             "bin_size": parsed["bin_size"],
-                            "bin_type": group["bin_type"],
+                            "Bay Type": group["bay_type"],
                             "bay_usage": None
                         })
                 else:  # Execute if no break (i.e., no errors)
