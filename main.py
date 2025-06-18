@@ -216,7 +216,7 @@ def check_duplicate_bin_ids(bay_groups):
         for bin_id in bin_ids:
             if bin_id in seen_in_group:
                 errors.append(f"⚠️ Duplicate bin ID '{bin_id}' found in {group_name}.")
-            seen_in_group.add(bay_id)
+            seen_in_group.add(bin_id)
 
             if bin_id not in all_bin_ids:
                 all_bin_ids[bin_id] = [group_name]
@@ -283,7 +283,7 @@ with tab1:
             st.session_state[f"group_name_{group_idx}"] = st.session_state[f"group_name_input_{group_idx}"]
 
         # Use session state for header
-        header = st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1"
+        header = st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}"
 
         with st.expander(header, expanded=True):
             # Text input with on_change callback
@@ -391,7 +391,7 @@ with tab2:
             st.session_state[f"bin_group_name_{group_idx}"] = st.session_state[f"bin_group_name_input_{group_idx}"]
 
         # Use session state for header
-        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1"
+        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
 
         with st.expander(header, expanded=True):
             # Text input for group name
