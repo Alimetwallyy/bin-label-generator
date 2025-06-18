@@ -503,11 +503,11 @@ with tab2:
                             "Depth(inch)": parsed["depth_inch"],
                             "Width(inch)": parsed["width_inch"],
                             "Height(inch)": parsed["height_inch"],
-                            "Zone": group["zone"],
+                            "Zone": group["zone"],  # User-entered Zone value
                             "Bay Definition": bay_def,
                             "bin_size": parsed["bin_size"],
                             "Bay Type": group["bay_type"],
-                            "Bay Usage": group["bay_usage"]
+                            "Bay Usage": group["bay_usage"]  # User-selected Bay Usage value
                         })
                 else:  # Execute if no break (i.e., no errors)
                     df = pd.DataFrame(data)
