@@ -209,7 +209,7 @@ st.title("Space Launch Quick Tools")
 st.markdown("A collection of tools for space launch operations.")
 
 # Create tabs
-tab1, tab2 = st.tabs(["Bin Label Generator", "New Application"])
+tab1, tab2 = st.tabs(["Bin Label Generator", "Bin Bay Mapping"])
 
 with tab1:
     st.header("Bin Label Generator")
@@ -314,9 +314,80 @@ with tab1:
                 st.error(f"Error generating output: {str(e)}")
 
 with tab2:
-    st.header("New Application")
-    st.markdown("This is a placeholder for a new space launch tool. Define your requirements below to build the application.")
-    st.info("Coming soon! Please specify the desired functionality for this tab.")
-    # Placeholder for future inputs
-    st.text_input("Application Name", placeholder="Enter the name of the new tool", key="new_app_name")
-    st.text_area("Description", placeholder="Describe what this tool should do", key="new_app_desc")
+    st.header("Bin Bay Mapping")
+    st.markdown("Define bay definition groups and map bin IDs to bin types.")
+
+    # List of bin types for dropdown
+    bin_types = [
+        "10_INCH_BIN", "11-KIVA-DEEP", "12-KIVA-DEEP", "13-KIVA-DEEP", "14-KIVA-DEEP",
+        "14_INCH_BIN", "16-KIVA-DEEP", "17-KIVA-DEEP", "18-KIVA-DEEP", "18-TRANS-SORT",
+        "18.5-KIVA-DEEP", "20-KIVA-DEEP", "20_INCH_BIN", "24-KIVA-DEEP", "24-TRANS-SORT",
+        "24_INCH_BIN", "30-KIVA-DEEP", "34-KIVA-DEEP", "4-PALLET", "4-PALLET-MATTRESS",
+        "4-PALLET-MATTRESS-OP", "4-PALLET-OP", "4-PASS-THROUGH", "4-RAINBOW",
+        "4-RAINBOW-MATTRESS", "4-RAINBOW-MATTRESS-OP", "4-RAINBOW-OP", "4-RAINBOW-TOWER",
+        "48-KIVA-DEEP", "48-KIVA-XL", "6-KIVA-DEEP", "6-PALLET", "6-PALLET-MATTRESS",
+        "6-PALLET-MATTRESS-OP", "6-PALLET-OP", "6-PASS-THROUGH", "6-RAINBOW",
+        "6-RAINBOW-MATTRESS", "6-RAINBOW-MATTRESS-OP", "6-RAINBOW-OP", "78-KIVA-TALL",
+        "8-PALLET", "9-KIVA-DEEP", "ALCOHOLIC-DRINKS", "BAGGED-SHOE", "BARREL",
+        "BAT-BIN", "BIN-STICKERED-TOTE", "BOOK-LARGE", "BOOK-MEDIUM", "BOOK-SMALL",
+        "BULK-RACK", "BULK-STOCK", "CANTILEVER", "CASE-FLOW", "CLAMPABLE-BULK-STOCK",
+        "DRAWER", "EIGHTH-PALLET", "FLAT-APPAREL", "FLAT_APPAREL_DRAWER", "FLOOR-PALLET",
+        "FULL-SHELF", "FURNITURE", "GROCERIES", "GROCERIES-LARGE", "GROCERIES-MEDIUM",
+        "GROCERIES-PALLET", "GROCERIES-SMALL", "HALF-PALLET", "HALF-VERTICAL",
+        "HANGER-ROD", "HOOK", "JEWELRY", "LADDER", "LARGE-APPAREL", "LARGE-SHOES",
+        "LIBRARY", "LIBRARY-DEEP", "LIBRARY-DIRECTED", "LIBRARY_DEEP_DRAWER",
+        "LIBRARY_DRAWER", "MATTRESS", "MEAT", "MEDICAL", "MEDIUM-SHOES", "NETTED-BAGGED",
+        "NON-CLAMPABLE-BULK-STOCK", "PALLET-DOUBLE", "PALLET-SINGLE", "PALLET-VERTICAL",
+        "PALLET_RACK", "PASS-THROUGH", "PASS-THROUGH-BULKY", "PET-LARGE", "PET-MEDIUM",
+        "PET-PALLET", "PET-SMALL", "PRODUCE", "QUARTER-PALLET", "RAINBOW",
+        "RAINBOW-HALF-VERTICAL", "RAINBOW-VERTICAL", "RANDOM-OTHER", "REACH_IN",
+        "RIVET-SHELVING", "RUG", "SHOES", "SMALL-APPAREL", "SMALL-SHOES",
+        "STEEL-SHELVING", "TASRS-SLOT", "TIER-RACK", "TOTE-BIN", "VERTICAL",
+        "VNA-RACKING", "WET_PRODUCE"
+    ]
+
+    num_groups = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=10, value=1, key="num_groups_bin_mapping")
+
+    bay_groups = []
+    for group_idx in range(num_groups):
+        # Initialize session state for group name
+        if f"bin_group_name_{group_idx}" not in st.session_state:
+            st.session_state[f"bin_group_name_{group_idx}"] = f"Bay Definition Group {group_idx + 1}"
+
+        # Callback to force rerender on name change
+        def update_bin_group_name(group_idx=group_idx):
+            st.session_state[f"bin_group_name_{group_idx}"] = st.session_state[f"bin_group_name_input_{group_idx}"]
+
+        # Use session state for header
+        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
+
+        with st.expander(header, expanded=True):
+            # Text input for group name
+            st.text_input(
+                "Group Name",
+                value=st.session_state[f"bin_group_name_{group_idx}"],
+                key=f"bin_group_name_input_{group_idx}",
+                on_change=update_bin_group_name
+            )
+
+            # Text area for bin IDs
+            bin_ids_input = st.text_area(f"Enter bin IDs (one per line, e.g., BIN-001-001-001)", key=f"bin_ids_{group_idx}")
+
+            # Dropdown for bin type
+            bin_type = st.selectbox(
+                "Select Bin Type",
+                options=bin_types,
+                index=0,  # Default to 10_INCH_BIN
+                key=f"bin_type_{group_idx}"
+            )
+
+            if bin_ids_input:
+                bin_list = [b.strip() for b in bin_ids_input.splitlines() if b.strip()]
+                if bin_list:
+                    bay_groups.append({
+                        "name": st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}",
+                        "bin_ids": bin_list,
+                        "bin_type": bin_type
+                    })
+
+    st.info("Inputs defined. Next steps: specify processing logic and outputs for Bin Bay Mapping.")
