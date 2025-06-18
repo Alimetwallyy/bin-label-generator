@@ -378,6 +378,25 @@ with tab2:
         "PassThrough"
     ]
 
+    # List of bay usage options for dropdown
+    bay_usage_options = [
+        "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
+        "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book",
+        "Chilled", "Chilled-FMP", "Corrosive", "Damage", "Damage Human Food",
+        "Damage Pet Food", "Damage_HRV", "Damaged Aerosol", "Damaged Corrosive",
+        "Damaged Flammable", "Damaged Flammable Aerosols", "Damaged Misc Health Hazard",
+        "Damaged Non Flammable Aerosols", "Damaged Oxidizer", "Damaged Restricted Hazmat",
+        "Damaged Toxic", "Dry Produce", "FMP", "Flammable", "Flammable Aerosols",
+        "Flammables_HRV", "Frozen", "HRV", "Hazmat", "Hazmat_HRV", "Meat-Beef",
+        "Meat-Deli", "Meat-Pork", "Meat-Poultry", "Meat-Seafood", "Misc Health Hazard",
+        "Non Flammable Aerosols", "Non Inventory Storage-Facilities",
+        "Non Inventory Storage-Other", "Non Inventory Storage-Stores",
+        "Non Inventory-Black Totes", "Non Sort-Team Lift", "Non-Storage",
+        "Non-TC Food", "Oxidizer", "Pet Food", "Produce", "Produce Backstock",
+        "Produce Wetracks", "Reserve-Ambient", "Restricted Hazmat", "Semi-Chilled",
+        "Shoes", "TC-Food", "Toxic", "Tropical"
+    ]
+
     num_groups = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=10, value=1, key="num_groups_bin_mapping")
 
     bay_groups = []
@@ -412,6 +431,14 @@ with tab2:
                 key=f"bay_definition_{group_idx}"
             )
 
+            # Dropdown for bay usage
+            bay_usage = st.selectbox(
+                "Select Bay Usage",
+                options=bay_usage_options,
+                index=0,  # Default to 45F Produce
+                key=f"bay_usage_{group_idx}"
+            )
+
             # Dropdown for bay type
             bay_type = st.selectbox(
                 "Select Bay Type",
@@ -435,6 +462,7 @@ with tab2:
                         "name": st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}",
                         "bin_ids": bin_list,
                         "bay_definition": bay_definition,
+                        "bay_usage": bay_usage,
                         "bay_type": bay_type,
                         "zone": zone
                     })
@@ -479,7 +507,7 @@ with tab2:
                             "Bay Definition": bay_def,
                             "bin_size": parsed["bin_size"],
                             "Bay Type": group["bay_type"],
-                            "bay_usage": None
+                            "Bay Usage": group["bay_usage"]
                         })
                 else:  # Execute if no break (i.e., no errors)
                     df = pd.DataFrame(data)
