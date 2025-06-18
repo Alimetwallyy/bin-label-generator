@@ -10,6 +10,24 @@ from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 
+# Add "Created By Alimomet" in top left
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700&display=swap');
+    .created-by {
+        position: absolute;
+        top: 10px;
+        left: 20px;
+        font-family: 'Roboto', Arial, Helvetica, sans-serif;
+        font-size: 14px;
+        font-weight: bold;
+        color: #333333;
+        z-index: 1000;
+    }
+    </style>
+    <div class="created-by">Created By Alimomet</div>
+""", unsafe_allow_html=True)
+
 def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
     data = []
     for bay in bay_ids:
@@ -187,8 +205,8 @@ def check_duplicate_bay_ids(bay_groups):
     return errors
 
 # --- Streamlit App ---
-st.title("Warehouse Tools")
-st.markdown("A collection of tools for warehouse management.")
+st.title("Space Launch Quick Tools")
+st.markdown("A collection of tools for space launch operations.")
 
 # Create tabs
 tab1, tab2 = st.tabs(["Bin Label Generator", "New Application"])
@@ -297,7 +315,7 @@ with tab1:
 
 with tab2:
     st.header("New Application")
-    st.markdown("This is a placeholder for a new warehouse management tool. Define your requirements below to build the application.")
+    st.markdown("This is a placeholder for a new space launch tool. Define your requirements below to build the application.")
     st.info("Coming soon! Please specify the desired functionality for this tab.")
     # Placeholder for future inputs
     st.text_input("Application Name", placeholder="Enter the name of the new tool", key="new_app_name")
