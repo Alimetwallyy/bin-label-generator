@@ -380,7 +380,7 @@ with tab2:
 
     # List of bay usage options for dropdown
     bay_usage_options = [
-        "*","45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
+        "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
         "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book",
         "Chilled", "Chilled-FMP", "Corrosive", "Damage", "Damage Human Food",
         "Damage Pet Food", "Damage_HRV", "Damaged Aerosol", "Damaged Corrosive",
@@ -422,7 +422,11 @@ with tab2:
             )
 
             # Text area for bin IDs
-            bin_ids_input = st.text_area(f"Enter bin IDs (one per line, e.g., BIN-001-001-001)", key=f"bin_ids_{group_idx}")
+            bin_ids_input = st.text_area(
+                f"Enter bin IDs (one per line, e.g., BIN-001-001-001)",
+                key=f"bin_ids_{group_idx}",
+                help="Paste Bin IDs from Excel (tab-separated, space-separated, or one per line)."
+            )
 
             # Text input for bay definition (max 48 chars)
             bay_definition = st.text_input(
@@ -456,7 +460,7 @@ with tab2:
             )
 
             if bin_ids_input:
-                bin_list = [b.strip() for b in bin_ids_input.splitlines() if b.strip()]
+                bin_list = [b.strip() for line in bin_ids_input.splitlines() for b in re.split(r'[\t\s]+', line) if b.strip()]
                 if bin_list:
                     bay_groups.append({
                         "name": st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}",
