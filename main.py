@@ -380,6 +380,7 @@ with tab2:
 
     # List of bay usage options for dropdown
     bay_usage_options = [
+        "*",  # Default option
         "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
         "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book",
         "Chilled", "Chilled-FMP", "Corrosive", "Damage", "Damage Human Food",
@@ -423,7 +424,7 @@ with tab2:
 
             # Text area for bin IDs
             bin_ids_input = st.text_area(
-                f"Enter bin IDs (one per line, e.g., BIN-001-001-001)",
+                f"Enter bin IDs (e.g., P-1-B217A262)",
                 key=f"bin_ids_{group_idx}",
                 help="Paste Bin IDs from Excel (tab-separated, space-separated, or one per line)."
             )
@@ -439,7 +440,7 @@ with tab2:
             bay_usage = st.selectbox(
                 "Select Bay Usage",
                 options=bay_usage_options,
-                index=0,  # Default to 45F Produce
+                index=0,  # Default to *
                 key=f"bay_usage_{group_idx}"
             )
 
