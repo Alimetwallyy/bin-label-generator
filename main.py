@@ -231,30 +231,9 @@ def check_duplicate_bin_ids(bay_groups):
 
 def parse_bay_definition(bay_definition):
     try:
-        # Extract dimensions using regex: e.g., "250x253x120cm"
-        match = re.match(r'^(\d+)x(\d+)x(\d+)cm', bay_definition)
-        if not match:
-            raise ValueError("Invalid dimension format. Expected 'HxWxDcm' (e.g., '250x253x120cm').")
-
-        height_cm = float(match.group(1))
-        width_cm = float(match.group(2))
-        depth_cm = float(match.group(3))
-
-        # Convert cm to inches (1 cm = 0.393701 inches)
-        cm_to_inch = 0.393701
-        height_inch = round(height_cm * cm_to_inch, 2)
-        width_inch = round(width_cm * cm_to_inch, 2)
-        depth_inch = round(depth_cm * cm_to_inch, 2)
-
-        # Format depth for bin_size
-        bin_size = f"{int(depth_cm)}Deep"
-
-        return {
-            "height_inch": height_inch,
-            "width_inch": width_inch,
-            "depth_inch": depth_inch,
-            "bin_size": bin_size
-        }
+        if not bay_definition:
+            raise ValueError("Bay Definition cannot be empty.")
+        return {"bay_definition": bay_definition}
     except Exception as e:
         return {"error": str(e)}
 
@@ -436,6 +415,26 @@ with tab2:
                 key=f"bay_definition_{group_idx}"
             )
 
+            # Text inputs for dimensions in CM
+            height_cm = st.number_input(
+                "Height (CM)",
+                min_value=0.0,
+                value=0.0,
+                key=f"height_cm_{group_idx}"
+            )
+            width_cm = st.number_input(
+                "Width (CM)",
+                min_value=0.0,
+                value=0.0,
+                key=f"width_cm_{group_idx}"
+            )
+            depth_cm = st.number_input(
+                "Depth (CM)",
+                min_value=0.0,
+                value=0.0,
+                key=f"depth_cm_{group_idx}"
+            )
+
             # Dropdown for bay usage
             bay_usage = st.selectbox(
                 "Select Bay Usage",
@@ -467,6 +466,9 @@ with tab2:
                         "name": st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}",
                         "bin_ids": bin_list,
                         "bay_definition": bay_definition,
+                        "height_cm": height_cm,
+                        "width_cm": width_cm,
+                        "depth_cm": depth_cm,
                         "bay_usage": bay_usage,
                         "bay_type": bay_type,
                         "zone": zone
@@ -494,6 +496,7 @@ with tab2:
             output = io.BytesIO()
             try:
                 data = []
+                cm_to_inch = 0.393701
                 for group in bay_groups:
                     bay_def = group["bay_definition"]
                     parsed = parse_bay_definition(bay_def)
@@ -505,14 +508,14 @@ with tab2:
                         data.append({
                             "ScannableId": bin_id,
                             "Distance Index": None,
-                            "Depth(inch)": parsed["depth_inch"],
-                            "Width(inch)": parsed["width_inch"],
-                            "Height(inch)": parsed["height_inch"],
-                            "Zone": group["zone"],  # User-entered Zone value
+                            "Depth(inch)": round(group["depth_cm"] * cm_to_inch, 2) if group["depth_cm"] else None,
+                            "Width(inch)": round(group["width_cm"] * cm_to_inch, 2) if group["width_cm"] else None,
+                            "Height(inch)": round(group["height_cm"] * cm_to_inch, 2) if group["height_cm"] else None,
+                            "Zone": group["zone"],
                             "Bay Definition": bay_def,
-                            "bin_size": parsed["bin_size"],
+                            "bin_size": f"{int(group['depth_cm'])}Deep" if group["depth_cm"] else "",
                             "Bay Type": group["bay_type"],
-                            "Bay Usage": group["bay_usage"]  # User-selected Bay Usage value
+                            "Bay Usage": group["bay_usage"]
                         })
                 else:  # Execute if no break (i.e., no errors)
                     df = pd.DataFrame(data)
