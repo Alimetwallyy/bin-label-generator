@@ -802,12 +802,18 @@ with tab3:
                     black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
                     white_font = Font(color="FFFFFF", bold=True)
                     center_align = Alignment(horizontal="center", vertical="center")
-                    for cell in ["A1", "A2", "B2", "C2", "E1", "E2", "F2", "G2", "H2"]:
-                        ws[cell].fill = black_fill
-                        ws[cell].font = white_font
-                        ws[cell].alignment = center_align
-                        ws[cell].border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                                                 top=Side(style='thin'), bottom=Side(style='thin'))
+                    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                                        top=Side(style='thin'), bottom=Side(style='thin'))
+
+                    # Apply black background to all cells in A1:H2
+                    for row in ws["A1:H2"]:
+                        for cell in row:
+                            cell.fill = black_fill
+                            cell.border = thin_border
+                            # Apply font and alignment to cells with content
+                            if cell in [ws["A1"], ws["A2"], ws["B2"], ws["C2"], ws["E1"], ws["E2"], ws["F2"], ws["G2"], ws["H2"]]:
+                                cell.font = white_font
+                                cell.alignment = center_align
 
                     # Data
                     for row_idx, row_data in enumerate(signage_data, start=3):
@@ -821,8 +827,7 @@ with tab3:
                         for col in ["A", "B", "C", "E", "F", "G", "H"]:
                             cell = ws[f"{col}{row_idx}"]
                             cell.alignment = center_align
-                            cell.border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                                                 top=Side(style='thin'), bottom=Side(style='thin'))
+                            cell.border = thin_border
 
                     output = io.BytesIO()
                     wb.save(output)
