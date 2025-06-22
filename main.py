@@ -242,7 +242,7 @@ st.title("Space Launch Quick Tools")
 st.markdown("A collection of tools for space launch operations.")
 
 # Create tabs
-tab1, tab2 = st.tabs(["Bin Label Generator", "Bin Bay Mapping"])
+tab1, tab2, tab3 = st.tabs(["Bin Label Generator", "Bin Bay Mapping", "EOA Generator"])
 
 with tab1:
     st.header("Bin Label Generator")
@@ -533,3 +533,7 @@ with tab2:
                     )
             except Exception as e:
                 st.error(f"Error generating Excel: {str(e)}")
+
+with tab3:
+    st.header("EOA Generator")
+    st.markdown("Placeholder for End of Aisle Signage Generator. Functionality to be added later.")
