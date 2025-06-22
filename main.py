@@ -216,7 +216,7 @@ def check_duplicate_bin_ids(bay_groups):
         for bin_id in bin_ids:
             if bin_id in seen_in_group:
                 errors.append(f"⚠️ Duplicate bin ID '{bin_id}' found in {group_name}.")
-            seen_in_group.add(bin_id)
+            seen_in_group.add(bay_id)
 
             if bin_id not in all_bin_ids:
                 all_bin_ids[bin_id] = [group_name]
@@ -236,6 +236,20 @@ def parse_bay_definition(bay_definition):
         return {"bay_definition": bay_definition}
     except Exception as e:
         return {"error": str(e)}
+
+def check_duplicate_aisles(mod_groups):
+    errors = []
+    all_aisles = {}
+    for group_idx, group in enumerate(mod_groups):
+        mod = group["mod"]
+        aisles = list(range(group["aisle_start"], group["aisle_end"] + 1))
+        for aisle in aisles:
+            aisle_key = f"{mod}-{aisle}"
+            if aisle_key in all_aisles:
+                errors.append(f"⚠️ Aisle {aisle} in module {mod} is duplicated in module {all_aisles[aisle_key]}.")
+            else:
+                all_aisles[aisle_key] = mod
+    return errors
 
 # --- Streamlit App ---
 st.title("Space Launch Quick Tools")
@@ -536,4 +550,214 @@ with tab2:
 
 with tab3:
     st.header("EOA Generator")
-    st.markdown("Placeholder for End of Aisle Signage Generator. Functionality to be added later.")
+    st.markdown("Generate End of Aisle signage based on FC design drawing. Define modules, aisle ranges, slot ranges, and facing aisles.")
+
+    # Input for modules
+    modules_input = st.text_area(
+        "Enter modules (comma-separated, e.g., P-1-A, P-1-B, P-2-A)",
+        key="modules_input",
+        help="Enter module IDs including floor (e.g., P-1-A for floor 1, module A)."
+    )
+
+    # Input for facing aisles
+    facing_aisles_input = st.text_area(
+        "Enter facing aisle pairs (comma-separated, e.g., P-1-A-200/P-1-A-201, P-1-B-200/P-1-B-202)",
+        key="facing_aisles_input",
+        help="Specify which aisles face each other (e.g., P-1-A-200/P-1-A-201 for aisles 200 and 201 in P-1-A)."
+    )
+
+    mod_groups = []
+    duplicate_errors = []
+
+    if modules_input:
+        modules = [mod.strip() for mod in modules_input.split(",") if mod.strip()]
+        if modules:
+            for mod_idx, mod in enumerate(modules):
+                with st.expander(f"Module {mod}", expanded=True):
+                    # Aisle range
+                    aisle_start = st.number_input(
+                        f"Start Aisle for {mod}",
+                        min_value=1,
+                        value=200,
+                        step=1,
+                        key=f"aisle_start_{mod_idx}"
+                    )
+                    aisle_end = st.number_input(
+                        f"End Aisle for {mod}",
+                        min_value=aisle_start,
+                        value=aisle_start,
+                        step=1,
+                        key=f"aisle_end_{mod_idx}"
+                    )
+
+                    # Slot ranges per aisle
+                    slot_ranges = {}
+                    aisles = list(range(aisle_start, aisle_end + 1))
+                    for aisle in aisles:
+                        st.markdown(f"**Slot Range for Aisle {aisle}**")
+                        slot_start = st.number_input(
+                            f"Start Slot for Aisle {aisle}",
+                            min_value=1,
+                            value=120,
+                            step=10,
+                            key=f"slot_start_{mod_idx}_{aisle}"
+                        )
+                        slot_end = st.number_input(
+                            f"End Slot for Aisle {aisle}",
+                            min_value=slot_start,
+                            value=slot_start,
+                            step=10,
+                            key=f"slot_end_{mod_idx}_{aisle}"
+                        )
+                        slot_ranges[aisle] = (slot_start, slot_end)
+
+                    mod_groups.append({
+                        "mod": mod,
+                        "aisle_start": aisle_start,
+                        "aisle_end": aisle_end,
+                        "slot_ranges": slot_ranges
+                    })
+
+    # Parse facing aisles
+    facing_pairs = []
+    if facing_aisles_input:
+        pairs = [pair.strip() for pair in facing_aisles_input.split(",") if pair.strip()]
+        for pair in pairs:
+            try:
+                left, right = pair.split("/")
+                left_mod, left_aisle = left.rsplit("-", 1)
+                right_mod, right_aisle = right.rsplit("-", 1)
+                facing_pairs.append((left_mod, int(left_aisle), right_mod, int(right_aisle)))
+            except ValueError:
+                st.warning(f"Invalid facing aisle pair: {pair}. Expected format: P-1-A-200/P-1-A-201")
+
+    # Check for duplicate aisles
+    if mod_groups:
+        duplicate_errors = check_duplicate_aisles(mod_groups)
+        with st.expander("Duplicate Errors", expanded=bool(duplicate_errors)):
+            if duplicate_errors:
+                for error in duplicate_errors:
+                    st.warning(error)
+            else:
+                st.info("No duplicate aisles detected.")
+
+    # Generate signage
+    if mod_groups and not duplicate_errors:
+        signage_data = []
+        processed_aisles = set()
+
+        # Handle facing aisles
+        for left_mod, left_aisle, right_mod, right_aisle in facing_pairs:
+            for mod_group in mod_groups:
+                if mod_group["mod"] == left_mod and left_aisle in mod_group["slot_ranges"]:
+                    left_slots = mod_group["slot_ranges"][left_aisle]
+                    left_slot_str = f"{left_slots[0]}-{left_slots[1]}"
+                if mod_group["mod"] == right_mod and right_aisle in mod_group["slot_ranges"]:
+                    right_slots = mod_group["slot_ranges"][right_aisle]
+                    right_slot_str = f"{right_slots[0]}-{right_slots[1]}"
+            signage_data.append({
+                "Left.Mod": left_mod,
+                "Left.Aisle": left_aisle,
+                "Left.Slots": left_slot_str,
+                "Right.Mod": right_mod,
+                "Right.Aisle": right_aisle,
+                "Right.Slots": right_slot_str,
+                "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"
+            })
+            processed_aisles.add(f"{left_mod}-{left_aisle}")
+            processed_aisles.add(f"{right_mod}-{right_aisle}")
+
+        # Handle isolated aisles
+        for mod_group in mod_groups:
+            mod = mod_group["mod"]
+            for aisle, (slot_start, slot_end) in mod_group["slot_ranges"].items():
+                aisle_key = f"{mod}-{aisle}"
+                if aisle_key not in processed_aisles:
+                    # Low End
+                    signage_data.append({
+                        "Left.Mod": "",
+                        "Left.Aisle": "",
+                        "Left.Slots": "",
+                        "Right.Mod": mod,
+                        "Right.Aisle": aisle,
+                        "Right.Slots": f"{slot_start}-{slot_end}",
+                        "Deployment Location": f"Low End of Aisle {aisle}"
+                    })
+                    # High End
+                    signage_data.append({
+                        "Left.Mod": mod,
+                        "Left.Aisle": aisle,
+                        "Left.Slots": f"{slot_end}-{slot_start}",
+                        "Right.Mod": "",
+                        "Right.Aisle": "",
+                        "Right.Slots": "",
+                        "Deployment Location": f"High End of Aisle {aisle}"
+                    })
+
+        # Preview signage data
+        if signage_data:
+            st.subheader("Preview Signage Data")
+            df_preview = pd.DataFrame(signage_data)
+            st.dataframe(df_preview)
+
+            if st.button("Generate EOA Signage Excel", key="generate_eoa_excel"):
+                with st.spinner("Generating Excel file..."):
+                    output = io.BytesIO()
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = "EOA Signage"
+
+                    # Headers
+                    ws.merge_cells("A1:C1")
+                    ws["A1"] = "Left Side of Sign"
+                    ws["A2"] = "Mod"
+                    ws["B2"] = "Aisle"
+                    ws["C2"] = "Slots"
+                    ws.merge_cells("E1:G1")
+                    ws["E1"] = "Right Side of Sign"
+                    ws["E2"] = "Mod"
+                    ws["F2"] = "Aisle"
+                    ws["G2"] = "Slots"
+                    ws["H2"] = "Deployment Location"
+
+                    # Styling
+                    black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+                    white_font = Font(color="FFFFFF", bold=True)
+                    center_align = Alignment(horizontal="center", vertical="center")
+                    for cell in ["A1", "A2", "B2", "C2", "E1", "E2", "F2", "G2", "H2"]:
+                        ws[cell].fill = black_fill
+                        ws[cell].font = white_font
+                        ws[cell].alignment = center_align
+                        ws[cell].border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                                                 top=Side(style='thin'), bottom=Side(style='thin'))
+
+                    # Data
+                    for row_idx, row_data in enumerate(signage_data, start=3):
+                        ws[f"A{row_idx}"] = row_data["Left.Mod"]
+                        ws[f"B{row_idx}"] = row_data["Left.Aisle"]
+                        ws[f"C{row_idx}"] = row_data["Left.Slots"]
+                        ws[f"E{row_idx}"] = row_data["Right.Mod"]
+                        ws[f"F{row_idx}"] = row_data["Right.Aisle"]
+                        ws[f"G{row_idx}"] = row_data["Right.Slots"]
+                        ws[f"H{row_idx}"] = row_data["Deployment Location"]
+                        for col in ["A", "B", "C", "E", "F", "G", "H"]:
+                            cell = ws[f"{col}{row_idx}"]
+                            cell.alignment = center_align
+                            cell.border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                                                 top=Side(style='thin'), bottom=Side(style='thin'))
+
+                    output = io.BytesIO()
+                    wb.save(output)
+                    output.seek(0)
+
+                    st.success("✅ EOA Signage Excel generated successfully!")
+                    st.download_button(
+                        label="📥 Download EOA Signage Excel",
+                        data=output,
+                        file_name="eoa_signage.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="download_eoa_excel"
+                    )
+
+    if not mod_groups:
+        st.warning("⚠️ Please define at least one module with valid aisle and slot ranges.")
