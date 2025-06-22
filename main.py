@@ -404,7 +404,7 @@ with tab2:
             st.session_state[f"bin_group_name_{group_idx}"] = st.session_state[f"bin_group_name_input_{group_idx}"]
 
         # Use session state for header
-        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1"
+        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
 
         with st.expander(header, expanded=True):
             # Text input for group name
