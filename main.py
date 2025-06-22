@@ -404,7 +404,7 @@ with tab2:
             st.session_state[f"bin_group_name_{group_idx}"] = st.session_state[f"bin_group_name_input_{group_idx}"]
 
         # Use session state for header
-        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
+        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1"
 
         with st.expander(header, expanded=True):
             # Text input for group name
@@ -646,7 +646,7 @@ with tab3:
         signage_data = []
         processed_aisles = set()
 
-        # Handle facing aisles
+        # Handle user-specified facing aisles
         for left_mod, left_aisle, right_mod, right_aisle in facing_pairs:
             left_slots, right_slots = None, None
             for mod_group in mod_groups:
@@ -667,22 +667,27 @@ with tab3:
                 processed_aisles.add(f"{left_mod}-{left_aisle}")
                 processed_aisles.add(f"{right_mod}-{right_aisle}")
 
-        # Handle isolated aisles
+        # Handle module aisles
         for mod_group in mod_groups:
             mod = mod_group["mod"]
-            for aisle, (slot_start, slot_end) in mod_group["slot_ranges"].items():
+            aisles = sorted(mod_group["slot_ranges"].keys())
+            for i in range(len(aisles)):
+                aisle = aisles[i]
                 aisle_key = f"{mod}-{aisle}"
-                if aisle_key not in processed_aisles:
-                    # Determine sign sides based on aisle parity
-                    if aisle % 2 == 0:  # Even aisle
+                if aisle_key in processed_aisles:
+                    continue
+                slot_start, slot_end = mod_group["slot_ranges"][aisle]
+
+                if i == 0:  # Starting aisle (one-sided)
+                    if aisle % 2 == 0:  # Even
                         low_side = "Right"
                         high_side = "Left"
-                    else:  # Odd aisle
+                    else:  # Odd
                         low_side = "Left"
                         high_side = "Right"
 
                     # Low End
-                    low_row = {
+                    signage_data.append({
                         "Left.Mod": mod if low_side == "Left" else "",
                         "Left.Aisle": aisle if low_side == "Left" else "",
                         "Left.Slots": f"{slot_start}-{slot_end}" if low_side == "Left" else "",
@@ -690,11 +695,10 @@ with tab3:
                         "Right.Aisle": aisle if low_side == "Right" else "",
                         "Right.Slots": f"{slot_start}-{slot_end}" if low_side == "Right" else "",
                         "Deployment Location": f"Low End of Aisle {aisle}"
-                    }
-                    signage_data.append(low_row)
+                    })
 
                     # High End
-                    high_row = {
+                    signage_data.append({
                         "Left.Mod": mod if high_side == "Left" else "",
                         "Left.Aisle": aisle if high_side == "Left" else "",
                         "Left.Slots": f"{slot_end}-{slot_start}" if high_side == "Left" else "",
@@ -702,8 +706,71 @@ with tab3:
                         "Right.Aisle": aisle if high_side == "Right" else "",
                         "Right.Slots": f"{slot_end}-{slot_start}" if high_side == "Right" else "",
                         "Deployment Location": f"High End of Aisle {aisle}"
-                    }
-                    signage_data.append(high_row)
+                    })
+                    processed_aisles.add(aisle_key)
+
+                elif i < len(aisles) - 1:  # Pair with next aisle (two-sided)
+                    next_aisle = aisles[i + 1]
+                    next_aisle_key = f"{mod}-{next_aisle}"
+                    if next_aisle_key in processed_aisles:
+                        continue
+                    next_slot_start, next_slot_end = mod_group["slot_ranges"][next_aisle]
+
+                    # Low End
+                    signage_data.append({
+                        "Left.Mod": mod,
+                        "Left.Aisle": aisle,
+                        "Left.Slots": f"{slot_start}-{slot_end}",
+                        "Right.Mod": mod,
+                        "Right.Aisle": next_aisle,
+                        "Right.Slots": f"{next_slot_start}-{next_slot_end}",
+                        "Deployment Location": f"Low End of Aisle {aisle}/{next_aisle}"
+                    })
+
+                    # High End
+                    signage_data.append({
+                        "Left.Mod": mod,
+                        "Left.Aisle": next_aisle,
+                        "Left.Slots": f"{next_slot_end}-{next_slot_start}",
+                        "Right.Mod": mod,
+                        "Right.Aisle": aisle,
+                        "Right.Slots": f"{slot_end}-{slot_start}",
+                        "Deployment Location": f"High End of Aisle {aisle}/{next_aisle}"
+                    })
+
+                    processed_aisles.add(aisle_key)
+                    processed_aisles.add(next_aisle_key)
+
+                else:  # Last aisle (one-sided, if unpaired)
+                    if aisle % 2 == 0:  # Even
+                        low_side = "Right"
+                        high_side = "Left"
+                    else:  # Odd
+                        low_side = "Left"
+                        high_side = "Right"
+
+                    # Low End
+                    signage_data.append({
+                        "Left.Mod": mod if low_side == "Left" else "",
+                        "Left.Aisle": aisle if low_side == "Left" else "",
+                        "Left.Slots": f"{slot_start}-{slot_end}" if low_side == "Left" else "",
+                        "Right.Mod": mod if low_side == "Right" else "",
+                        "Right.Aisle": aisle if low_side == "Right" else "",
+                        "Right.Slots": f"{slot_start}-{slot_end}" if low_side == "Right" else "",
+                        "Deployment Location": f"Low End of Aisle {aisle}"
+                    })
+
+                    # High End
+                    signage_data.append({
+                        "Left.Mod": mod if high_side == "Left" else "",
+                        "Left.Aisle": aisle if high_side == "Left" else "",
+                        "Left.Slots": f"{slot_end}-{slot_start}" if high_side == "Left" else "",
+                        "Right.Mod": mod if high_side == "Right" else "",
+                        "Right.Aisle": aisle if high_side == "Right" else "",
+                        "Right.Slots": f"{slot_end}-{slot_start}" if high_side == "Right" else "",
+                        "Deployment Location": f"High End of Aisle {aisle}"
+                    })
+                    processed_aisles.add(aisle_key)
 
         # Preview signage data
         if signage_data:
