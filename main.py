@@ -290,6 +290,9 @@ with tab1:
             shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
             shelves = list(string.ascii_uppercase[:shelf_count])
 
+            # --- BUG FIX: Initialize bins_per_shelf for each group ---
+            bins_per_shelf = {}
+
             st.markdown("**Bins per Shelf**")
             for shelf in shelves:
                 count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
@@ -350,7 +353,6 @@ with tab1:
                         shelves = group['shelves']
                         bins_per_shelf = group['bins_per_shelf']
                         try:
-                            # UI Improvement: Put diagrams in an expander
                             with st.expander(f"View Diagram for **{bay_id}**"):
                                 base_label = bay_id.replace("BAY-", "")
                                 base_number = int(base_label[-3:])
@@ -424,7 +426,6 @@ with tab2:
             
             st.divider()
             st.markdown("**Default Dimensions for the Group**")
-            # UI Improvement: Use columns for dimensions
             col1, col2, col3 = st.columns(3)
             with col1:
                 height_cm = st.number_input("Height (CM)", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}")
@@ -445,14 +446,13 @@ with tab2:
             if outlier_shelves:
                 for shelf in outlier_shelves:
                     st.markdown(f"**Dimensions for Outlier Shelf: {shelf}**")
-                    # UI Improvement: Use columns for outlier dimensions
                     o_col1, o_col2, o_col3 = st.columns(3)
                     with o_col1:
-                        o_height = st.number_input(f"Height (CM)", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}_{shelf}")
+                        o_height = st.number_input(f"Height (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}_{shelf}")
                     with o_col2:
-                        o_width = st.number_input(f"Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}_{shelf}")
+                        o_width = st.number_input(f"Width (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}_{shelf}")
                     with o_col3:
-                        o_depth = st.number_input(f"Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}_{shelf}")
+                        o_depth = st.number_input(f"Depth (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}_{shelf}")
                     outlier_dimensions[shelf] = {
                         "height_cm": o_height,
                         "width_cm": o_width,
@@ -557,7 +557,6 @@ with tab2:
 
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
-    # UI Improvement: Add an info box to explain the process
     st.info("""
     **How this works:**
     1. Define your modules and their overall aisle ranges.
@@ -586,7 +585,6 @@ with tab3:
         if modules:
             for mod_idx, mod in enumerate(modules):
                 with st.expander(f"Module **{mod}**", expanded=True):
-                    # UI Improvement: Use columns for range inputs
                     col1, col2 = st.columns(2)
                     with col1:
                         aisle_start = st.number_input(f"Start Aisle for {mod}", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
@@ -598,12 +596,11 @@ with tab3:
                     aisles = list(range(aisle_start, aisle_end + 1))
                     for aisle in aisles:
                         st.markdown(f"**Slot Range for Aisle {aisle}**")
-                        # UI Improvement: Use columns for range inputs
                         s_col1, s_col2 = st.columns(2)
                         with s_col1:
-                            slot_start = st.number_input(f"Start Slot", min_value=1, value=120, step=10, key=f"slot_start_{mod_idx}_{aisle}", label_visibility="collapsed")
+                            slot_start = st.number_input(f"Start Slot", min_value=1, value=120, step=10, key=f"slot_start_{mod_idx}_{aisle}")
                         with s_col2:
-                            slot_end = st.number_input(f"End Slot", min_value=slot_start, value=slot_start, step=10, key=f"slot_end_{mod_idx}_{aisle}", label_visibility="collapsed")
+                            slot_end = st.number_input(f"End Slot", min_value=slot_start, value=slot_start, step=10, key=f"slot_end_{mod_idx}_{aisle}")
                         slot_ranges[aisle] = (slot_start, slot_end)
 
                     mod_groups.append({
@@ -714,7 +711,6 @@ with tab3:
         if signage_data:
             st.subheader("Preview Signage Data")
             df_preview = pd.DataFrame(signage_data)
-            # UI Improvement: Use container width for the dataframe
             st.dataframe(df_preview, use_container_width=True)
 
             if st.button("Generate EOA Signage Excel", key="generate_eoa_excel"):
