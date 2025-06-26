@@ -423,7 +423,6 @@ with tab2:
             width_cm = st.number_input("Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}")
             depth_cm = st.number_input("Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}")
             
-            # --- MODIFICATION START: Outlier shelves ---
             outlier_shelves_input = st.text_input(
                 "Outlier Shelves (optional, comma-separated, e.g., C,D)",
                 key=f"outlier_shelves_{group_idx}",
@@ -445,7 +444,6 @@ with tab2:
                         "depth_cm": o_depth,
                     }
                 st.markdown("---")
-            # --- MODIFICATION END ---
 
             bay_usage = st.selectbox("Select Bay Usage", options=bay_usage_options, index=0, key=f"bay_usage_{group_idx}")
             bay_type = st.selectbox("Select Bay Type", options=bay_types, index=0, key=f"bay_type_{group_idx}")
@@ -466,7 +464,7 @@ with tab2:
                         "bay_usage": bay_usage,
                         "bay_type": bay_type,
                         "zone": zone,
-                        "outlier_dimensions": outlier_dimensions, # Add outlier data to the group
+                        "outlier_dimensions": outlier_dimensions,
                     })
                     temp_errors = check_duplicate_bin_ids(bay_groups)
                     if temp_errors:
@@ -500,16 +498,16 @@ with tab2:
                         break
 
                     for bin_id in group["bin_ids"]:
-                        # --- MODIFICATION START: Dynamic dimension selection ---
+                        # --- MODIFICATION START: Corrected dynamic dimension selection ---
                         current_h = group["height_cm"]
                         current_w = group["width_cm"]
                         current_d = group["depth_cm"]
 
-                        # Regex to find a capital letter followed by numbers (e.g., 'C' in '...C120')
-                        match = re.search(r'([A-Z])\d+', bin_id)
+                        # Corrected Regex: Looks for a capital letter followed by numbers at the END of the string.
+                        # This correctly finds the shelf in '...C120' without matching other letters.
+                        match = re.search(r'([A-Z])\d+$', bin_id)
                         if match:
                             found_shelf = match.group(1)
-                            # Check if the found shelf is defined as an outlier
                             if found_shelf in group["outlier_dimensions"]:
                                 outlier_dims = group["outlier_dimensions"][found_shelf]
                                 current_h = outlier_dims["height_cm"]
