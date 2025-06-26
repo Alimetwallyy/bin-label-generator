@@ -136,10 +136,17 @@ def style_excel(writer, sheet_name, df, shelves):
         bold_font = Font(bold=True)
         center_align = Alignment(horizontal="center", vertical="center")
 
+        # --- MODIFICATION START ---
+        # Original color list for shelves starting from Shelf B
         hex_colors = [
             "339900", "9B30FF", "FFFF00", "00FFFF", "CC0000", "F88017",
             "FF00FF", "996600", "00FF00", "FF6565", "9999FE"
         ]
+        
+        # New color list for styling, with White ("FFFFFF") added at the beginning for Shelf A
+        styling_colors = ["FFFFFF"] + hex_colors
+        # --- MODIFICATION END ---
+
 
         if shelves:
             ws.merge_cells('A1:C1')
@@ -148,8 +155,9 @@ def style_excel(writer, sheet_name, df, shelves):
             ws['A1'].font = bold_font
             ws['A1'].alignment = center_align
             ws['A1'].border = border
-
-            for i, hex_color in enumerate(hex_colors[:len(shelves)]):
+            
+            # The loop now uses the 'styling_colors' list to apply colors to shelves
+            for i, hex_color in enumerate(styling_colors[:len(shelves)]):
                 col_letter = get_column_letter(4 + i)
                 ws[f"{col_letter}1"] = hex_color
                 ws[f"{col_letter}1"].fill = PatternFill(start_color=hex_color, end_color=hex_color, fill_type="solid")
