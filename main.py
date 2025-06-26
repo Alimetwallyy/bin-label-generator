@@ -261,7 +261,7 @@ st.markdown("A collection of tools for space launch operations.")
 tab1, tab2, tab3 = st.tabs(["Bin Label Generator", "Bin Bay Mapping", "EOA Generator"])
 
 with tab1:
-    st.header("Bin Label Generator")
+    st.header("Bin Label Generator 🏷️", divider='rainbow')
     st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels. Bay IDs must be unique (e.g., BAY-001-001-001).")
 
     bay_groups = []
@@ -286,10 +286,11 @@ with tab1:
             )
 
             bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
+            st.divider()
             shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
             shelves = list(string.ascii_uppercase[:shelf_count])
 
-            bins_per_shelf = {}
+            st.markdown("**Bins per Shelf**")
             for shelf in shelves:
                 count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
                 bins_per_shelf[shelf] = count
@@ -312,7 +313,7 @@ with tab1:
 
     if bay_groups:
         duplicate_errors = check_duplicate_bay_ids(bay_groups)
-        with st.expander("Duplicate Errors", expanded=bool(duplicate_errors)):
+        with st.expander("⚠️ Duplicate Errors", expanded=bool(duplicate_errors)):
             if duplicate_errors:
                 for error in duplicate_errors:
                     st.warning(error)
@@ -343,23 +344,26 @@ with tab1:
                 )
 
                 st.subheader("🖼️ Interactive Bin Layout Diagrams")
+                st.caption("Click on a bay to expand its visual layout.")
                 for group in bay_groups:
                     for bay_id in group['bays']:
                         shelves = group['shelves']
                         bins_per_shelf = group['bins_per_shelf']
                         try:
-                            base_label = bay_id.replace("BAY-", "")
-                            base_number = int(base_label[-3:])
-                            fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
-                            if fig:
-                                st.plotly_chart(fig, use_container_width=True)
+                            # UI Improvement: Put diagrams in an expander
+                            with st.expander(f"View Diagram for **{bay_id}**"):
+                                base_label = bay_id.replace("BAY-", "")
+                                base_number = int(base_label[-3:])
+                                fig = plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number)
+                                if fig:
+                                    st.plotly_chart(fig, use_container_width=True)
                         except Exception as e:
-                            st.error(f"Error processing bay ID '{bay_id}': {str(e)}")
+                            st.error(f"Error processing diagram for bay ID '{bay_id}': {str(e)}")
             except Exception as e:
                 st.error(f"Error generating output: {str(e)}")
 
 with tab2:
-    st.header("Bin Bay Mapping")
+    st.header("Bin Bay Mapping ↔️", divider='rainbow')
     st.markdown("Define bay definition groups and map bin IDs to bay types.")
 
     bay_types = [
@@ -418,11 +422,18 @@ with tab2:
                 key=f"bay_definition_{group_idx}"
             )
             
+            st.divider()
             st.markdown("**Default Dimensions for the Group**")
-            height_cm = st.number_input("Height (CM)", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}")
-            width_cm = st.number_input("Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}")
-            depth_cm = st.number_input("Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}")
+            # UI Improvement: Use columns for dimensions
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                height_cm = st.number_input("Height (CM)", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}")
+            with col2:
+                width_cm = st.number_input("Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}")
+            with col3:
+                depth_cm = st.number_input("Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}")
             
+            st.divider()
             outlier_shelves_input = st.text_input(
                 "Outlier Shelves (optional, comma-separated, e.g., C,D)",
                 key=f"outlier_shelves_{group_idx}",
@@ -432,18 +443,22 @@ with tab2:
 
             outlier_dimensions = {}
             if outlier_shelves:
-                st.markdown("---")
                 for shelf in outlier_shelves:
-                    st.markdown(f"**Dimensions for Outlier Shelf {shelf}**")
-                    o_height = st.number_input(f"Height (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}_{shelf}")
-                    o_width = st.number_input(f"Width (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}_{shelf}")
-                    o_depth = st.number_input(f"Depth (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}_{shelf}")
+                    st.markdown(f"**Dimensions for Outlier Shelf: {shelf}**")
+                    # UI Improvement: Use columns for outlier dimensions
+                    o_col1, o_col2, o_col3 = st.columns(3)
+                    with o_col1:
+                        o_height = st.number_input(f"Height (CM)", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}_{shelf}")
+                    with o_col2:
+                        o_width = st.number_input(f"Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}_{shelf}")
+                    with o_col3:
+                        o_depth = st.number_input(f"Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}_{shelf}")
                     outlier_dimensions[shelf] = {
                         "height_cm": o_height,
                         "width_cm": o_width,
                         "depth_cm": o_depth,
                     }
-                st.markdown("---")
+                st.divider()
 
             bay_usage = st.selectbox("Select Bay Usage", options=bay_usage_options, index=0, key=f"bay_usage_{group_idx}")
             bay_type = st.selectbox("Select Bay Type", options=bay_types, index=0, key=f"bay_type_{group_idx}")
@@ -475,7 +490,7 @@ with tab2:
 
     if bay_groups:
         duplicate_errors = check_duplicate_bin_ids(bay_groups)
-        with st.expander("Duplicate Errors", expanded=bool(duplicate_errors)):
+        with st.expander("⚠️ Duplicate Errors", expanded=bool(duplicate_errors)):
             if duplicate_errors:
                 for error in duplicate_errors:
                     st.warning(error)
@@ -498,13 +513,10 @@ with tab2:
                         break
 
                     for bin_id in group["bin_ids"]:
-                        # --- MODIFICATION START: Corrected dynamic dimension selection ---
                         current_h = group["height_cm"]
                         current_w = group["width_cm"]
                         current_d = group["depth_cm"]
 
-                        # Corrected Regex: Looks for a capital letter followed by numbers at the END of the string.
-                        # This correctly finds the shelf in '...C120' without matching other letters.
                         match = re.search(r'([A-Z])\d+$', bin_id)
                         if match:
                             found_shelf = match.group(1)
@@ -513,7 +525,6 @@ with tab2:
                                 current_h = outlier_dims["height_cm"]
                                 current_w = outlier_dims["width_cm"]
                                 current_d = outlier_dims["depth_cm"]
-                        # --- MODIFICATION END ---
                         
                         data.append({
                             "ScannableId": bin_id,
@@ -545,8 +556,15 @@ with tab2:
                 st.error(f"Error generating Excel: {str(e)}")
 
 with tab3:
-    st.header("EOA Generator")
-    st.markdown("Generate End of Aisle signage based on FC design drawing. Define modules, aisle ranges, slot ranges, and facing aisles.")
+    st.header("EOA Generator 🪧", divider='rainbow')
+    # UI Improvement: Add an info box to explain the process
+    st.info("""
+    **How this works:**
+    1. Define your modules and their overall aisle ranges.
+    2. For each module, specify the slot ranges for each aisle.
+    3. Use the "facing aisle pairs" box only for special cases (e.g., across a main walkway).
+    4. The tool will automatically generate all other standard one-sided and two-sided signs for you.
+    """)
 
     modules_input = st.text_area(
         "Enter modules (comma-separated, e.g., P-1-A, P-1-B, P-2-A)",
@@ -555,7 +573,7 @@ with tab3:
     )
 
     facing_aisles_input = st.text_area(
-        "Enter facing aisle pairs (comma-separated, e.g., P-1-A-200/P-1-A-201, P-1-B-200/P-1-B-202)",
+        "Enter facing aisle pairs (comma-separated, e.g., P-1-A-200/P-1-A-201)",
         key="facing_aisles_input",
         help="Specify which aisles face each other (e.g., P-1-A-200/P-1-A-201 for aisles 200 and 201 in P-1-A)."
     )
@@ -567,16 +585,25 @@ with tab3:
         modules = [mod.strip() for mod in modules_input.split(",") if mod.strip()]
         if modules:
             for mod_idx, mod in enumerate(modules):
-                with st.expander(f"Module {mod}", expanded=True):
-                    aisle_start = st.number_input(f"Start Aisle for {mod}", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
-                    aisle_end = st.number_input(f"End Aisle for {mod}", min_value=aisle_start, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
-
+                with st.expander(f"Module **{mod}**", expanded=True):
+                    # UI Improvement: Use columns for range inputs
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        aisle_start = st.number_input(f"Start Aisle for {mod}", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
+                    with col2:
+                        aisle_end = st.number_input(f"End Aisle for {mod}", min_value=aisle_start, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
+                    
+                    st.divider()
                     slot_ranges = {}
                     aisles = list(range(aisle_start, aisle_end + 1))
                     for aisle in aisles:
                         st.markdown(f"**Slot Range for Aisle {aisle}**")
-                        slot_start = st.number_input(f"Start Slot for Aisle {aisle}", min_value=1, value=120, step=10, key=f"slot_start_{mod_idx}_{aisle}")
-                        slot_end = st.number_input(f"End Slot for Aisle {aisle}", min_value=slot_start, value=slot_start, step=10, key=f"slot_end_{mod_idx}_{aisle}")
+                        # UI Improvement: Use columns for range inputs
+                        s_col1, s_col2 = st.columns(2)
+                        with s_col1:
+                            slot_start = st.number_input(f"Start Slot", min_value=1, value=120, step=10, key=f"slot_start_{mod_idx}_{aisle}", label_visibility="collapsed")
+                        with s_col2:
+                            slot_end = st.number_input(f"End Slot", min_value=slot_start, value=slot_start, step=10, key=f"slot_end_{mod_idx}_{aisle}", label_visibility="collapsed")
                         slot_ranges[aisle] = (slot_start, slot_end)
 
                     mod_groups.append({
@@ -586,6 +613,7 @@ with tab3:
                         "slot_ranges": slot_ranges
                     })
 
+    # Parse facing aisles
     facing_pairs = []
     if facing_aisles_input:
         pairs = [pair.strip() for pair in facing_aisles_input.split(",") if pair.strip()]
@@ -600,7 +628,7 @@ with tab3:
 
     if mod_groups:
         duplicate_errors = check_duplicate_aisles(mod_groups)
-        with st.expander("Duplicate Errors", expanded=bool(duplicate_errors)):
+        with st.expander("⚠️ Duplicate Errors", expanded=bool(duplicate_errors)):
             if duplicate_errors:
                 for error in duplicate_errors:
                     st.warning(error)
@@ -686,7 +714,8 @@ with tab3:
         if signage_data:
             st.subheader("Preview Signage Data")
             df_preview = pd.DataFrame(signage_data)
-            st.dataframe(df_preview)
+            # UI Improvement: Use container width for the dataframe
+            st.dataframe(df_preview, use_container_width=True)
 
             if st.button("Generate EOA Signage Excel", key="generate_eoa_excel"):
                 with st.spinner("Generating Excel file..."):
