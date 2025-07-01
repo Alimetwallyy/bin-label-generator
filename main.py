@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import plotly.graph_objects as go
-import seaborn as sns
+import seaborn assns
 import string
 import re
 from openpyxl import Workbook
@@ -290,7 +290,6 @@ with tab1:
             shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
             shelves = list(string.ascii_uppercase[:shelf_count])
 
-            # --- BUG FIX: Initialize bins_per_shelf for each group ---
             bins_per_shelf = {}
 
             st.markdown("**Bins per Shelf**")
@@ -557,175 +556,171 @@ with tab2:
 
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
-    st.info("""
-    **How this works:**
-    1. Define your modules and their overall aisle ranges.
-    2. For each module, specify the slot ranges for each aisle.
-    3. Use the "facing aisle pairs" box only for special cases (e.g., across a main walkway).
-    4. The tool will automatically generate all other standard one-sided and two-sided signs for you.
-    """)
-
-    modules_input = st.text_area(
-        "Enter modules (comma-separated, e.g., P-1-A, P-1-B, P-2-A)",
-        key="modules_input",
-        help="Enter module IDs including floor (e.g., P-1-A for floor 1, module A)."
-    )
-
-    facing_aisles_input = st.text_area(
-        "Enter facing aisle pairs (comma-separated, e.g., P-1-A-200/P-1-A-201)",
-        key="facing_aisles_input",
-        help="Specify which aisles face each other (e.g., P-1-A-200/P-1-A-201 for aisles 200 and 201 in P-1-A)."
-    )
-
-    mod_groups = []
-    duplicate_errors = []
-
-    if modules_input:
-        modules = [mod.strip() for mod in modules_input.split(",") if mod.strip()]
-        if modules:
-            for mod_idx, mod in enumerate(modules):
-                with st.expander(f"Module **{mod}**", expanded=True):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        aisle_start = st.number_input(f"Start Aisle for {mod}", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
-                    with col2:
-                        aisle_end = st.number_input(f"End Aisle for {mod}", min_value=aisle_start, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
+    st.markdown("**Step 1: Define All Aisles and Their Slot Ranges**")
+    st.caption("First, define all possible modules and the slot ranges for every aisle you might use.")
+    
+    num_mod_defs = st.number_input("How many modules do you want to define?", min_value=1, max_value=10, value=1, key="num_mod_defs")
+    
+    mod_definitions = []
+    aisle_details = {} 
+    
+    for mod_idx in range(num_mod_defs):
+        with st.expander(f"Module Definition {mod_idx + 1}", expanded=True):
+            mod_name = st.text_input("Module Name (e.g., P-1-A)", key=f"mod_name_{mod_idx}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                aisle_start = st.number_input(f"Start Aisle for {mod_name}", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
+            with col2:
+                aisle_end = st.number_input(f"End Aisle for {mod_name}", min_value=aisle_end, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
+            
+            st.divider()
+            slot_ranges = {}
+            if mod_name:
+                aisles_in_range = list(range(aisle_start, aisle_end + 1))
+                for aisle in aisles_in_range:
+                    st.markdown(f"**Slot Range for Aisle {aisle}**")
+                    s_col1, s_col2 = st.columns(2)
+                    with s_col1:
+                        slot_start = st.number_input(f"Start Slot", value=1, step=1, key=f"slot_start_{mod_idx}_{aisle}")
+                    with s_col2:
+                        slot_end = st.number_input(f"End Slot", value=199, step=1, key=f"slot_end_{mod_idx}_{aisle}")
                     
-                    st.divider()
-                    slot_ranges = {}
-                    aisles = list(range(aisle_start, aisle_end + 1))
-                    for aisle in aisles:
-                        st.markdown(f"**Slot Range for Aisle {aisle}**")
-                        s_col1, s_col2 = st.columns(2)
-                        with s_col1:
-                            slot_start = st.number_input(f"Start Slot", min_value=1, value=120, step=10, key=f"slot_start_{mod_idx}_{aisle}")
-                        with s_col2:
-                            slot_end = st.number_input(f"End Slot", min_value=slot_start, value=slot_start, step=10, key=f"slot_end_{mod_idx}_{aisle}")
-                        slot_ranges[aisle] = (slot_start, slot_end)
+                    # Populate data structures for later use
+                    slot_ranges[aisle] = (slot_start, slot_end)
+                    aisle_details[aisle] = {"mod": mod_name, "slots": (slot_start, slot_end)}
 
-                    mod_groups.append({
-                        "mod": mod,
-                        "aisle_start": aisle_start,
-                        "aisle_end": aisle_end,
-                        "slot_ranges": slot_ranges
-                    })
+                mod_definitions.append({"mod": mod_name, "slot_ranges": slot_ranges})
 
-    # Parse facing aisles
-    facing_pairs = []
-    if facing_aisles_input:
-        pairs = [pair.strip() for pair in facing_aisles_input.split(",") if pair.strip()]
-        for pair in pairs:
-            try:
-                left, right = pair.split("/")
-                left_mod, left_aisle = left.rsplit("-", 1)
-                right_mod, right_aisle = right.rsplit("-", 1)
-                facing_pairs.append((left_mod, int(left_aisle), right_mod, int(right_aisle)))
-            except ValueError:
-                st.warning(f"Invalid facing aisle pair: {pair}. Expected format: P-1-A-200/P-1-A-201")
+    st.divider()
+    st.markdown("**Step 2: Define Physical Aisle Layouts**")
+    st.caption("Now, describe how the aisles are physically arranged. Use a slash `/` for two-sided signs and commas to separate groups.")
+    
+    layout_input = st.text_area(
+        "Aisle Layouts (one module per line)",
+        height=150,
+        key="eoa_layout_input",
+        placeholder="Example:\nP-1-A: 200, 201/202, 203/204, 207"
+    )
 
-    if mod_groups:
-        duplicate_errors = check_duplicate_aisles(mod_groups)
-        with st.expander("⚠️ Duplicate Errors", expanded=bool(duplicate_errors)):
-            if duplicate_errors:
-                for error in duplicate_errors:
-                    st.warning(error)
-            else:
-                st.info("No duplicate aisles detected.")
+    st.divider()
+    st.markdown("**Step 3: Confirm Placement Rule for Single-Sided Signs**")
+    placement_rule = st.radio(
+        "Low End Placement Rule",
+        ["Odd on Left / Even on Right", "Even on Left / Odd on Right"],
+        key="placement_rule",
+        horizontal=True,
+    )
 
-    if mod_groups and not duplicate_errors:
+    if st.button("Generate EOA Signage", key="generate_eoa_signage"):
         signage_data = []
-        processed_aisles = set()
+        errors = []
 
-        for left_mod, left_aisle, right_mod, right_aisle in facing_pairs:
-            left_slots, right_slots = None, None
-            for mod_group in mod_groups:
-                if mod_group["mod"] == left_mod and left_aisle in mod_group["slot_ranges"]:
-                    left_slots = mod_group["slot_ranges"][left_aisle]
-                if mod_group["mod"] == right_mod and right_aisle in mod_group["slot_ranges"]:
-                    right_slots = mod_group["slot_ranges"][right_aisle]
-            if left_slots and right_slots:
-                signage_data.append({
-                    "Left.Mod": left_mod, "Left.Aisle": left_aisle, "Left.Slots": f"{left_slots[0]}-{left_slots[1]}",
-                    "Right.Mod": right_mod, "Right.Aisle": right_aisle, "Right.Slots": f"{right_slots[0]}-{right_slots[1]}",
-                    "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"
-                })
-                processed_aisles.add(f"{left_mod}-{left_aisle}")
-                processed_aisles.add(f"{right_mod}-{right_aisle}")
+        # Validate that all aisles in layout are defined
+        layout_aisles = set(re.findall(r'\d+', layout_input))
+        defined_aisles = set(str(a) for a in aisle_details.keys())
+        
+        undefined = layout_aisles - defined_aisles
+        if undefined:
+            st.error(f"Error: The following aisles were used in the layout but not defined in Step 1: {', '.join(sorted(list(undefined)))}")
+        else:
+            with st.spinner("Generating EOA Signage..."):
+                layout_lines = [line.strip() for line in layout_input.splitlines() if line.strip()]
+                
+                for line in layout_lines:
+                    try:
+                        mod_part, aisles_part = line.split(":", 1)
+                        mod_name = mod_part.strip()
+                        aisle_groups = [ag.strip() for ag in aisles_part.split(',') if ag.strip()]
 
-        for mod_group in mod_groups:
-            mod = mod_group["mod"]
-            aisles = sorted(mod_group["slot_ranges"].keys())
-            for i in range(len(aisles)):
-                aisle = aisles[i]
-                aisle_key = f"{mod}-{aisle}"
-                if aisle_key in processed_aisles:
-                    continue
-                slot_start, slot_end = mod_group["slot_ranges"][aisle]
+                        for group in aisle_groups:
+                            # --- TWO-SIDED SIGN LOGIC ---
+                            if "/" in group:
+                                left_aisle_str, right_aisle_str = group.split('/')
+                                left_aisle = int(left_aisle_str)
+                                right_aisle = int(right_aisle_str)
 
-                if i == 0:
-                    if aisle % 2 == 0: low_side, high_side = "Right", "Left"
-                    else: low_side, high_side = "Left", "Right"
-                    signage_data.append({
-                        "Left.Mod": mod if low_side == "Left" else "", "Left.Aisle": aisle if low_side == "Left" else "", "Left.Slots": f"{slot_start}-{slot_end}" if low_side == "Left" else "",
-                        "Right.Mod": mod if low_side == "Right" else "", "Right.Aisle": aisle if low_side == "Right" else "", "Right.Slots": f"{slot_start}-{slot_end}" if low_side == "Right" else "",
-                        "Deployment Location": f"Low End of Aisle {aisle}"
-                    })
-                    signage_data.append({
-                        "Left.Mod": mod if high_side == "Left" else "", "Left.Aisle": aisle if high_side == "Left" else "", "Left.Slots": f"{slot_end}-{slot_start}" if high_side == "Left" else "",
-                        "Right.Mod": mod if high_side == "Right" else "", "Right.Aisle": aisle if high_side == "Right" else "", "Right.Slots": f"{slot_end}-{slot_start}" if high_side == "Right" else "",
-                        "Deployment Location": f"High End of Aisle {aisle}"
-                    })
-                    processed_aisles.add(aisle_key)
-                elif i < len(aisles) - 1:
-                    next_aisle = aisles[i + 1]
-                    next_aisle_key = f"{mod}-{next_aisle}"
-                    if next_aisle_key in processed_aisles: continue
-                    next_slot_start, next_slot_end = mod_group["slot_ranges"][next_aisle]
-                    signage_data.append({
-                        "Left.Mod": mod, "Left.Aisle": aisle, "Left.Slots": f"{slot_start}-{slot_end}",
-                        "Right.Mod": mod, "Right.Aisle": next_aisle, "Right.Slots": f"{next_slot_start}-{next_slot_end}",
-                        "Deployment Location": f"Low End of Aisle {aisle}/{next_aisle}"
-                    })
-                    signage_data.append({
-                        "Left.Mod": mod, "Left.Aisle": next_aisle, "Left.Slots": f"{next_slot_end}-{next_slot_start}",
-                        "Right.Mod": mod, "Right.Aisle": aisle, "Right.Slots": f"{slot_end}-{slot_start}",
-                        "Deployment Location": f"High End of Aisle {aisle}/{next_aisle}"
-                    })
-                    processed_aisles.add(aisle_key)
-                    processed_aisles.add(next_aisle_key)
-                else:
-                    if aisle % 2 == 0: low_side, high_side = "Right", "Left"
-                    else: low_side, high_side = "Left", "Right"
-                    signage_data.append({
-                        "Left.Mod": mod if low_side == "Left" else "", "Left.Aisle": aisle if low_side == "Left" else "", "Left.Slots": f"{slot_start}-{slot_end}" if low_side == "Left" else "",
-                        "Right.Mod": mod if low_side == "Right" else "", "Right.Aisle": aisle if low_side == "Right" else "", "Right.Slots": f"{slot_start}-{slot_end}" if low_side == "Right" else "",
-                        "Deployment Location": f"Low End of Aisle {aisle}"
-                    })
-                    signage_data.append({
-                        "Left.Mod": mod if high_side == "Left" else "", "Left.Aisle": aisle if high_side == "Left" else "", "Left.Slots": f"{slot_end}-{slot_start}" if high_side == "Left" else "",
-                        "Right.Mod": mod if high_side == "Right" else "", "Right.Aisle": aisle if high_side == "Right" else "", "Right.Slots": f"{slot_end}-{slot_start}" if high_side == "Right" else "",
-                        "Deployment Location": f"High End of Aisle {aisle}"
-                    })
-                    processed_aisles.add(aisle_key)
+                                left_details = aisle_details.get(left_aisle)
+                                right_details = aisle_details.get(right_aisle)
 
-        if signage_data:
-            st.subheader("Preview Signage Data")
-            df_preview = pd.DataFrame(signage_data)
-            st.dataframe(df_preview, use_container_width=True)
+                                if not left_details or not right_details:
+                                    errors.append(f"Details not found for pair {group}")
+                                    continue
+                                
+                                # Low End Sign (e.g., 201 on Left, 202 on Right)
+                                signage_data.append({
+                                    "Left.Mod": left_details["mod"], "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}",
+                                    "Right.Mod": right_details["mod"], "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}",
+                                    "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"
+                                })
+                                # High End Sign (positions swapped, slots reversed)
+                                signage_data.append({
+                                    "Left.Mod": right_details["mod"], "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}",
+                                    "Right.Mod": left_details["mod"], "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}",
+                                    "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"
+                                })
 
-            if st.button("Generate EOA Signage Excel", key="generate_eoa_excel"):
-                with st.spinner("Generating Excel file..."):
+                            # --- ONE-SIDED SIGN LOGIC ---
+                            else:
+                                aisle = int(group)
+                                details = aisle_details.get(aisle)
+                                if not details:
+                                    errors.append(f"Details not found for single aisle {aisle}")
+                                    continue
+
+                                is_even = aisle % 2 == 0
+                                low_end_side = ""
+                                
+                                if placement_rule == "Odd on Left / Even on Right":
+                                    low_end_side = "Right" if is_even else "Left"
+                                else: # Even on Left / Odd on Right
+                                    low_end_side = "Left" if is_even else "Right"
+                                
+                                high_end_side = "Left" if low_end_side == "Right" else "Right"
+
+                                # Low End Sign
+                                sign_low = {"Deployment Location": f"Low End of Aisle {aisle}"}
+                                if low_end_side == "Left":
+                                    sign_low.update({"Left.Mod": details["mod"], "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
+                                else:
+                                    sign_low.update({"Right.Mod": details["mod"], "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
+                                signage_data.append(sign_low)
+
+                                # High End Sign
+                                sign_high = {"Deployment Location": f"High End of Aisle {aisle}"}
+                                if high_end_side == "Left":
+                                    sign_high.update({"Left.Mod": details["mod"], "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
+                                else:
+                                    sign_high.update({"Right.Mod": details["mod"], "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
+                                signage_data.append(sign_high)
+
+                    except Exception as e:
+                        errors.append(f"Could not parse layout line: '{line}'. Error: {e}")
+
+                if errors:
+                    for error in errors:
+                        st.error(error)
+                
+                if signage_data:
+                    st.subheader("Preview Signage Data")
+                    df_preview = pd.DataFrame(signage_data)
+                    st.dataframe(df_preview, use_container_width=True)
+
                     output = io.BytesIO()
                     wb = Workbook()
                     ws = wb.active
                     ws.title = "EOA Signage"
 
+                    # Headers
+                    headers = ["Left.Mod", "Left.Aisle", "Left.Slots", "Right.Mod", "Right.Aisle", "Right.Slots", "Deployment Location"]
+                    # Manually create header rows for specific styling
                     ws.merge_cells("A1:C1"); ws["A1"] = "Left Side of Sign"
+                    ws["E1:G1"]; ws["E1"] = "Right Side of Sign"
                     ws["A2"] = "Mod"; ws["B2"] = "Aisle"; ws["C2"] = "Slots"
-                    ws.merge_cells("E1:G1"); ws["E1"] = "Right Side of Sign"
                     ws["E2"] = "Mod"; ws["F2"] = "Aisle"; ws["G2"] = "Slots"
                     ws["H2"] = "Deployment Location"
 
+                    # Styling
                     black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
                     white_font = Font(color="FFFFFF", bold=True)
                     center_align = Alignment(horizontal="center", vertical="center")
@@ -738,28 +733,28 @@ with tab3:
                             if cell.value:
                                 cell.font = white_font
                                 cell.alignment = center_align
-
+                    
+                    # Data
                     for row_idx, row_data in enumerate(signage_data, start=3):
-                        ws[f"A{row_idx}"] = row_data["Left.Mod"]; ws[f"B{row_idx}"] = row_data["Left.Aisle"]; ws[f"C{row_idx}"] = row_data["Left.Slots"]
-                        ws[f"E{row_idx}"] = row_data["Right.Mod"]; ws[f"F{row_idx}"] = row_data["Right.Aisle"]; ws[f"G{row_idx}"] = row_data["Right.Slots"]
-                        ws[f"H{row_idx}"] = row_data["Deployment Location"]
+                        ws[f"A{row_idx}"] = row_data.get("Left.Mod", "")
+                        ws[f"B{row_idx}"] = row_data.get("Left.Aisle", "")
+                        ws[f"C{row_idx}"] = row_data.get("Left.Slots", "")
+                        ws[f"E{row_idx}"] = row_data.get("Right.Mod", "")
+                        ws[f"F{row_idx}"] = row_data.get("Right.Aisle", "")
+                        ws[f"G{row_idx}"] = row_data.get("Right.Slots", "")
+                        ws[f"H{row_idx}"] = row_data.get("Deployment Location", "")
                         for col in "ABCEFGH":
-                            cell = ws[f"{col}{row_idx}"]
-                            cell.alignment = center_align
-                            cell.border = thin_border
+                            ws[f"{col}{row_idx}"].alignment = center_align
+                            ws[f"{col}{row_idx}"].border = thin_border
 
-                    output = io.BytesIO()
                     wb.save(output)
                     output.seek(0)
-
+                    
                     st.success("✅ EOA Signage Excel generated successfully!")
                     st.download_button(
                         label="📥 Download EOA Signage Excel",
                         data=output,
                         file_name="eoa_signage.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="download_eoa_excel"
+                        key="download_eoa_excel_new"
                     )
-
-    if not mod_groups:
-        st.warning("⚠️ Please define at least one module with valid aisle and slot ranges.")
