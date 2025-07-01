@@ -556,29 +556,30 @@ with tab2:
 
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
+    
+    # --- UX Improvement: Default Slots with Outliers ---
     st.markdown("**Step 1: Define All Aisles and Their Slot Ranges**")
-    st.caption("First, define all possible modules and the slot ranges for every aisle you might use.")
+    st.caption("Define all modules. For each, set a default slot range and specify any aisles with different slots.")
     
     num_mod_defs = st.number_input("How many modules do you want to define?", min_value=1, max_value=20, value=1, key="num_mod_defs")
     
     aisle_details = {} 
     
     for mod_idx in range(num_mod_defs):
-        # BUG FIX: Implement session state for dynamic expander headers
         if f"eoa_mod_name_{mod_idx}" not in st.session_state:
-            st.session_state[f"eoa_mod_name_{mod_idx}"] = f"Module Definition {mod_idx + 1}"
+            st.session_state[f"eoa_mod_name_{mod_idx}"] = ""
 
         def update_eoa_mod_name(idx=mod_idx):
-            st.session_state[f"eoa_mod_name_{idx}"] = st.session_state[f"eoa_mod_name_input_{idx}"]
+            current_val = st.session_state[f"eoa_mod_name_input_{idx}"]
+            st.session_state[f"eoa_mod_name_{idx}"] = current_val or f"Module Definition {idx + 1}"
 
-        header = st.session_state[f"eoa_mod_name_{mod_idx}"].strip() or f"Module Definition {mod_idx + 1}"
+        header = st.session_state[f"eoa_mod_name_{mod_idx}"] or f"Module Definition {mod_idx + 1}"
 
         with st.expander(header, expanded=True):
             mod_name = st.text_input(
                 "Module Name (e.g., P-1-A)",
                 key=f"eoa_mod_name_input_{mod_idx}",
-                value=st.session_state[f"eoa_mod_name_{mod_idx}"].replace(f"Module Definition {mod_idx + 1}", ""),
-                on_change=update_eoa_mod_name
+                on_change=update_eoa_mod_name,
             ).strip()
             
             col1, col2 = st.columns(2)
@@ -589,38 +590,61 @@ with tab3:
             
             st.divider()
             
-            if mod_name:
-                # BUG FIX: Correctly create nested dictionary for the module
-                if mod_name not in aisle_details:
-                    aisle_details[mod_name] = {}
+            st.markdown("**Default Slot Range for this Module**")
+            d_col1, d_col2 = st.columns(2)
+            with d_col1:
+                default_start_slot = st.number_input("Default Start Slot", value=1, step=1, key=f"d_slot_start_{mod_idx}")
+            with d_col2:
+                default_end_slot = st.number_input("Default End Slot", value=199, step=1, key=f"d_slot_end_{mod_idx}")
 
+            outlier_aisles_input = st.text_area("Outlier Aisles for Slots (optional, comma-separated)", key=f"outlier_aisles_{mod_idx}")
+            outlier_aisles = {int(a.strip()) for a in outlier_aisles_input.split(',') if a.strip()}
+
+            outlier_slots = {}
+            if outlier_aisles:
+                st.markdown("**Outlier Slot Definitions**")
+                for outlier in sorted(list(outlier_aisles)):
+                    o_col1, o_col2 = st.columns(2)
+                    with o_col1:
+                        outlier_start = st.number_input(f"Start Slot for Aisle {outlier}", value=1, step=1, key=f"o_start_{mod_idx}_{outlier}")
+                    with o_col2:
+                        outlier_end = st.number_input(f"End Slot for Aisle {outlier}", value=199, step=1, key=f"o_end_{mod_idx}_{outlier}")
+                    outlier_slots[outlier] = (outlier_start, outlier_end)
+
+            if mod_name:
+                aisle_details[mod_name] = {}
                 aisles_in_range = list(range(aisle_start, aisle_end + 1))
                 for aisle in aisles_in_range:
-                    st.markdown(f"**Slot Range for Aisle {aisle}**")
-                    s_col1, s_col2 = st.columns(2)
-                    with s_col1:
-                        slot_start = st.number_input(f"Start Slot", value=1, step=1, key=f"slot_start_{mod_idx}_{aisle}")
-                    with s_col2:
-                        slot_end = st.number_input(f"End Slot", value=199, step=1, key=f"slot_end_{mod_idx}_{aisle}")
-                    
-                    # BUG FIX: Populate the nested dictionary correctly
-                    aisle_details[mod_name][aisle] = {"slots": (slot_start, slot_end)}
+                    if aisle in outlier_slots:
+                        aisle_details[mod_name][aisle] = {"slots": outlier_slots[aisle]}
+                    else:
+                        aisle_details[mod_name][aisle] = {"slots": (default_start_slot, default_end_slot)}
 
     st.divider()
     st.markdown("**Step 2: Define Physical Aisle Layouts**")
-    st.caption("Now, describe how the aisles are physically arranged. Use a slash `/` for two-sided signs and commas to separate groups.")
     
-    layout_input = st.text_area(
-        "Aisle Layouts (one module per line)",
+    st.markdown("**2a. Standard (Single-Module) Layouts**")
+    st.caption("Describe how aisles within the same module are arranged.")
+    standard_layout_input = st.text_area(
+        "Standard Layouts (one module per line)",
         height=150,
-        key="eoa_layout_input",
+        key="eoa_standard_layout_input",
         placeholder="Example:\nP-1-A: 200, 201/202, 207"
     )
 
+    st.markdown("**2b. Cross-Module Pairs (Optional)**")
+    st.caption("Define aisle pairs that touch across different modules.")
+    cross_module_layout_input = st.text_area(
+        "Cross-Module Pairs (one pair per line)",
+        height=100,
+        key="eoa_cross_module_layout_input",
+        placeholder="Example:\nP-1-A-201/P-1-B-200"
+    )
+
     st.divider()
-    st.markdown("**Step 3: Confirm Placement Rule for Single-Sided Signs**")
+    st.markdown("**Step 3: Confirm Placement Rule**")
     placement_rule = st.radio(
-        "Low End Placement Rule",
+        "Low End Placement Rule (for single-sided signs)",
         ["Odd on Left / Even on Right", "Even on Left / Odd on Right"],
         key="placement_rule",
         horizontal=True,
@@ -629,144 +653,149 @@ with tab3:
     if st.button("Generate EOA Signage", key="generate_eoa_signage"):
         signage_data = []
         errors = []
+        processed_aisles = set()
 
-        # BUG FIX: New, more precise validation logic
-        layout_lines = [line.strip() for line in layout_input.splitlines() if line.strip()]
-        for line in layout_lines:
-            try:
-                mod_part, aisles_part = line.split(":", 1)
-                mod_name = mod_part.strip()
+        with st.spinner("Generating EOA Signage..."):
+            # --- 1. Process Cross-Module Pairs ---
+            cross_module_pairs = [p.strip() for p in cross_module_layout_input.splitlines() if p.strip()]
+            for pair_str in cross_module_pairs:
+                try:
+                    left_full, right_full = pair_str.split('/')
+                    left_mod, left_aisle_str = left_full.rsplit('-', 1)
+                    right_mod, right_aisle_str = right_full.rsplit('-', 1)
+                    left_aisle, right_aisle = int(left_aisle_str), int(right_aisle_str)
 
-                if mod_name not in aisle_details:
-                    errors.append(f"Validation Error: Module '{mod_name}' from your layout was not defined in Step 1.")
-                    continue
-                
-                layout_aisles_in_line = set(re.findall(r'\d+', aisles_part))
-                defined_aisles_for_mod = set(str(a) for a in aisle_details[mod_name].keys())
-                
-                undefined = layout_aisles_in_line - defined_aisles_for_mod
-                if undefined:
-                    errors.append(f"Validation Error: In module '{mod_name}', these aisles were not defined in Step 1: {', '.join(sorted(list(undefined)))}")
-            except Exception:
-                 errors.append(f"Could not parse layout line: '{line}'. Expected format 'Module: Aisles'.")
+                    left_details = aisle_details.get(left_mod, {}).get(left_aisle)
+                    right_details = aisle_details.get(right_mod, {}).get(right_aisle)
 
+                    if not left_details or not right_details:
+                        errors.append(f"Details not found for cross-module pair: {pair_str}")
+                        continue
+                    
+                    signage_data.append({
+                        "Left.Mod": left_mod, "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}",
+                        "Right.Mod": right_mod, "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}",
+                        "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"
+                    })
+                    signage_data.append({
+                        "Left.Mod": right_mod, "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}",
+                        "Right.Mod": left_mod, "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}",
+                        "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"
+                    })
+                    processed_aisles.add(f"{left_mod}-{left_aisle}")
+                    processed_aisles.add(f"{right_mod}-{right_aisle}")
+                except Exception as e:
+                    errors.append(f"Could not parse cross-module pair '{pair_str}'. Error: {e}")
+
+            # --- 2. Process Standard Layouts ---
+            standard_layout_lines = [line.strip() for line in standard_layout_input.splitlines() if line.strip()]
+            for line in standard_layout_lines:
+                try:
+                    mod_part, aisles_part = line.split(":", 1)
+                    mod_name = mod_part.strip()
+                    aisle_groups = [ag.strip() for ag in aisles_part.split(',') if ag.strip()]
+
+                    for group in aisle_groups:
+                        # --- Standard Two-Sided ---
+                        if "/" in group:
+                            left_aisle_str, right_aisle_str = group.split('/')
+                            left_aisle, right_aisle = int(left_aisle_str), int(right_aisle_str)
+
+                            if f"{mod_name}-{left_aisle}" in processed_aisles or f"{mod_name}-{right_aisle}" in processed_aisles: continue
+
+                            left_details = aisle_details.get(mod_name, {}).get(left_aisle)
+                            right_details = aisle_details.get(mod_name, {}).get(right_aisle)
+
+                            if not left_details or not right_details:
+                                errors.append(f"Details not found for pair {group} in module {mod_name}")
+                                continue
+                            
+                            signage_data.append({"Left.Mod": mod_name, "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}", "Right.Mod": mod_name, "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}", "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"})
+                            signage_data.append({"Left.Mod": mod_name, "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}", "Right.Mod": mod_name, "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}", "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"})
+                            processed_aisles.add(f"{mod_name}-{left_aisle}")
+                            processed_aisles.add(f"{mod_name}-{right_aisle}")
+                        
+                        # --- Standard One-Sided ---
+                        else:
+                            aisle = int(group)
+                            if f"{mod_name}-{aisle}" in processed_aisles: continue
+                            
+                            details = aisle_details.get(mod_name, {}).get(aisle)
+                            if not details:
+                                errors.append(f"Details not found for single aisle {aisle} in module {mod_name}")
+                                continue
+
+                            is_even = aisle % 2 == 0
+                            low_end_side = "Right" if (placement_rule == "Odd on Left / Even on Right" and is_even) or (placement_rule == "Even on Left / Odd on Right" and not is_even) else "Left"
+                            high_end_side = "Left" if low_end_side == "Right" else "Right"
+                            
+                            sign_low = {"Deployment Location": f"Low End of Aisle {aisle}"}
+                            if low_end_side == "Left": sign_low.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
+                            else: sign_low.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
+                            signage_data.append(sign_low)
+                            
+                            sign_high = {"Deployment Location": f"High End of Aisle {aisle}"}
+                            if high_end_side == "Left": sign_high.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
+                            else: sign_high.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
+                            signage_data.append(sign_high)
+                            processed_aisles.add(f"{mod_name}-{aisle}")
+                except Exception as e:
+                    errors.append(f"Could not process layout line: '{line}'. Error: {e}")
 
         if errors:
             for error in errors:
                 st.error(error)
-        else:
-            with st.spinner("Generating EOA Signage..."):
-                for line in layout_lines:
-                    try:
-                        mod_part, aisles_part = line.split(":", 1)
-                        mod_name = mod_part.strip()
-                        aisle_groups = [ag.strip() for ag in aisles_part.split(',') if ag.strip()]
+        
+        if signage_data:
+            st.subheader("Preview Signage Data")
+            df_preview = pd.DataFrame(signage_data)
+            st.dataframe(df_preview, use_container_width=True)
 
-                        for group in aisle_groups:
-                            if "/" in group:
-                                left_aisle_str, right_aisle_str = group.split('/')
-                                left_aisle = int(left_aisle_str)
-                                right_aisle = int(right_aisle_str)
+            # --- Excel Generation ---
+            output = io.BytesIO()
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "EOA Signage"
 
-                                # BUG FIX: Correctly look up details from nested dictionary
-                                left_details = aisle_details.get(mod_name, {}).get(left_aisle)
-                                right_details = aisle_details.get(mod_name, {}).get(right_aisle)
+            ws.merge_cells("A1:C1"); ws["A1"] = "Left Side of Sign"
+            ws.merge_cells("E1:G1"); ws["E1"] = "Right Side of Sign"
+            ws["A2"] = "Mod"; ws["B2"] = "Aisle"; ws["C2"] = "Slots"
+            ws["E2"] = "Mod"; ws["F2"] = "Aisle"; ws["G2"] = "Slots"
+            ws["H2"] = "Deployment Location"
 
-                                if not left_details or not right_details:
-                                    errors.append(f"Logic Error: Details not found for pair {group} in module {mod_name}")
-                                    continue
-                                
-                                signage_data.append({
-                                    "Left.Mod": mod_name, "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}",
-                                    "Right.Mod": mod_name, "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}",
-                                    "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"
-                                })
-                                signage_data.append({
-                                    "Left.Mod": mod_name, "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}",
-                                    "Right.Mod": mod_name, "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}",
-                                    "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"
-                                })
-                            else:
-                                aisle = int(group)
-                                details = aisle_details.get(mod_name, {}).get(aisle)
-                                if not details:
-                                    errors.append(f"Logic Error: Details not found for single aisle {aisle} in module {mod_name}")
-                                    continue
+            black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
+            white_font = Font(color="FFFFFF", bold=True)
+            center_align = Alignment(horizontal="center", vertical="center")
+            thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
-                                is_even = aisle % 2 == 0
-                                low_end_side = "Right" if (placement_rule == "Odd on Left / Even on Right" and is_even) or \
-                                                         (placement_rule == "Even on Left / Odd on Right" and not is_even) else "Left"
-                                high_end_side = "Left" if low_end_side == "Right" else "Right"
+            for row in ws["A1:H2"]:
+                for cell in row:
+                    cell.fill = black_fill
+                    cell.border = thin_border
+                    if cell.value:
+                        cell.font = white_font
+                        cell.alignment = center_align
+            
+            for row_idx, row_data in enumerate(signage_data, start=3):
+                ws[f"A{row_idx}"] = row_data.get("Left.Mod", "")
+                ws[f"B{row_idx}"] = row_data.get("Left.Aisle", "")
+                ws[f"C{row_idx}"] = row_data.get("Left.Slots", "")
+                ws[f"E{row_idx}"] = row_data.get("Right.Mod", "")
+                ws[f"F{row_idx}"] = row_data.get("Right.Aisle", "")
+                ws[f"G{row_idx}"] = row_data.get("Right.Slots", "")
+                ws[f"H{row_idx}"] = row_data.get("Deployment Location", "")
+                for col in "ABCEFGH":
+                    ws[f"{col}{row_idx}"].alignment = center_align
+                    ws[f"{col}{row_idx}"].border = thin_border
 
-                                sign_low = {"Deployment Location": f"Low End of Aisle {aisle}"}
-                                if low_end_side == "Left":
-                                    sign_low.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
-                                else:
-                                    sign_low.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
-                                signage_data.append(sign_low)
-
-                                sign_high = {"Deployment Location": f"High End of Aisle {aisle}"}
-                                if high_end_side == "Left":
-                                    sign_high.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
-                                else:
-                                    sign_high.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
-                                signage_data.append(sign_high)
-                    except Exception as e:
-                        errors.append(f"Could not process layout line: '{line}'. Error: {e}")
-
-                if errors:
-                    for error in errors:
-                        st.error(error)
-                
-                if signage_data:
-                    st.subheader("Preview Signage Data")
-                    df_preview = pd.DataFrame(signage_data)
-                    st.dataframe(df_preview, use_container_width=True)
-
-                    output = io.BytesIO()
-                    wb = Workbook()
-                    ws = wb.active
-                    ws.title = "EOA Signage"
-
-                    ws.merge_cells("A1:C1"); ws["A1"] = "Left Side of Sign"
-                    ws.merge_cells("E1:G1"); ws["E1"] = "Right Side of Sign"
-                    ws["A2"] = "Mod"; ws["B2"] = "Aisle"; ws["C2"] = "Slots"
-                    ws["E2"] = "Mod"; ws["F2"] = "Aisle"; ws["G2"] = "Slots"
-                    ws["H2"] = "Deployment Location"
-
-                    black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
-                    white_font = Font(color="FFFFFF", bold=True)
-                    center_align = Alignment(horizontal="center", vertical="center")
-                    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-
-                    for row in ws["A1:H2"]:
-                        for cell in row:
-                            cell.fill = black_fill
-                            cell.border = thin_border
-                            if cell.value:
-                                cell.font = white_font
-                                cell.alignment = center_align
-                    
-                    for row_idx, row_data in enumerate(signage_data, start=3):
-                        ws[f"A{row_idx}"] = row_data.get("Left.Mod", "")
-                        ws[f"B{row_idx}"] = row_data.get("Left.Aisle", "")
-                        ws[f"C{row_idx}"] = row_data.get("Left.Slots", "")
-                        ws[f"E{row_idx}"] = row_data.get("Right.Mod", "")
-                        ws[f"F{row_idx}"] = row_data.get("Right.Aisle", "")
-                        ws[f"G{row_idx}"] = row_data.get("Right.Slots", "")
-                        ws[f"H{row_idx}"] = row_data.get("Deployment Location", "")
-                        for col in "ABCEFGH":
-                            ws[f"{col}{row_idx}"].alignment = center_align
-                            ws[f"{col}{row_idx}"].border = thin_border
-
-                    wb.save(output)
-                    output.seek(0)
-                    
-                    st.success("✅ EOA Signage Excel generated successfully!")
-                    st.download_button(
-                        label="📥 Download EOA Signage Excel",
-                        data=output,
-                        file_name="eoa_signage.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="download_eoa_excel_new"
-                    )
+            wb.save(output)
+            output.seek(0)
+            
+            st.success("✅ EOA Signage Excel generated successfully!")
+            st.download_button(
+                label="📥 Download EOA Signage Excel",
+                data=output,
+                file_name="eoa_signage.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_eoa_excel_new"
+            )
