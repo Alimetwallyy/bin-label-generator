@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import plotly.graph_objects as go
-import seaborn assns
+import seaborn as sns
 import string
 import re
 from openpyxl import Workbook
@@ -572,7 +572,8 @@ with tab3:
             with col1:
                 aisle_start = st.number_input(f"Start Aisle for {mod_name}", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
             with col2:
-                aisle_end = st.number_input(f"End Aisle for {mod_name}", min_value=aisle_end, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
+                # BUG FIX: min_value should be aisle_start, not aisle_end
+                aisle_end = st.number_input(f"End Aisle for {mod_name}", min_value=aisle_start, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
             
             st.divider()
             slot_ranges = {}
@@ -586,7 +587,6 @@ with tab3:
                     with s_col2:
                         slot_end = st.number_input(f"End Slot", value=199, step=1, key=f"slot_end_{mod_idx}_{aisle}")
                     
-                    # Populate data structures for later use
                     slot_ranges[aisle] = (slot_start, slot_end)
                     aisle_details[aisle] = {"mod": mod_name, "slots": (slot_start, slot_end)}
 
@@ -600,7 +600,7 @@ with tab3:
         "Aisle Layouts (one module per line)",
         height=150,
         key="eoa_layout_input",
-        placeholder="Example:\nP-1-A: 200, 201/202, 203/204, 207"
+        placeholder="Example:\nP-1-A: 200, 201/202, 207"
     )
 
     st.divider()
@@ -616,7 +616,6 @@ with tab3:
         signage_data = []
         errors = []
 
-        # Validate that all aisles in layout are defined
         layout_aisles = set(re.findall(r'\d+', layout_input))
         defined_aisles = set(str(a) for a in aisle_details.keys())
         
@@ -634,7 +633,6 @@ with tab3:
                         aisle_groups = [ag.strip() for ag in aisles_part.split(',') if ag.strip()]
 
                         for group in aisle_groups:
-                            # --- TWO-SIDED SIGN LOGIC ---
                             if "/" in group:
                                 left_aisle_str, right_aisle_str = group.split('/')
                                 left_aisle = int(left_aisle_str)
@@ -647,20 +645,17 @@ with tab3:
                                     errors.append(f"Details not found for pair {group}")
                                     continue
                                 
-                                # Low End Sign (e.g., 201 on Left, 202 on Right)
                                 signage_data.append({
                                     "Left.Mod": left_details["mod"], "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}",
                                     "Right.Mod": right_details["mod"], "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}",
                                     "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"
                                 })
-                                # High End Sign (positions swapped, slots reversed)
                                 signage_data.append({
                                     "Left.Mod": right_details["mod"], "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}",
                                     "Right.Mod": left_details["mod"], "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}",
                                     "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"
                                 })
 
-                            # --- ONE-SIDED SIGN LOGIC ---
                             else:
                                 aisle = int(group)
                                 details = aisle_details.get(aisle)
@@ -673,12 +668,11 @@ with tab3:
                                 
                                 if placement_rule == "Odd on Left / Even on Right":
                                     low_end_side = "Right" if is_even else "Left"
-                                else: # Even on Left / Odd on Right
+                                else:
                                     low_end_side = "Left" if is_even else "Right"
                                 
                                 high_end_side = "Left" if low_end_side == "Right" else "Right"
 
-                                # Low End Sign
                                 sign_low = {"Deployment Location": f"Low End of Aisle {aisle}"}
                                 if low_end_side == "Left":
                                     sign_low.update({"Left.Mod": details["mod"], "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
@@ -686,7 +680,6 @@ with tab3:
                                     sign_low.update({"Right.Mod": details["mod"], "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
                                 signage_data.append(sign_low)
 
-                                # High End Sign
                                 sign_high = {"Deployment Location": f"High End of Aisle {aisle}"}
                                 if high_end_side == "Left":
                                     sign_high.update({"Left.Mod": details["mod"], "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
@@ -711,16 +704,13 @@ with tab3:
                     ws = wb.active
                     ws.title = "EOA Signage"
 
-                    # Headers
-                    headers = ["Left.Mod", "Left.Aisle", "Left.Slots", "Right.Mod", "Right.Aisle", "Right.Slots", "Deployment Location"]
-                    # Manually create header rows for specific styling
                     ws.merge_cells("A1:C1"); ws["A1"] = "Left Side of Sign"
-                    ws["E1:G1"]; ws["E1"] = "Right Side of Sign"
+                    # BUG FIX: Correctly merge the cells for the right side header
+                    ws.merge_cells("E1:G1"); ws["E1"] = "Right Side of Sign"
                     ws["A2"] = "Mod"; ws["B2"] = "Aisle"; ws["C2"] = "Slots"
                     ws["E2"] = "Mod"; ws["F2"] = "Aisle"; ws["G2"] = "Slots"
                     ws["H2"] = "Deployment Location"
 
-                    # Styling
                     black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
                     white_font = Font(color="FFFFFF", bold=True)
                     center_align = Alignment(horizontal="center", vertical="center")
@@ -734,7 +724,6 @@ with tab3:
                                 cell.font = white_font
                                 cell.alignment = center_align
                     
-                    # Data
                     for row_idx, row_data in enumerate(signage_data, start=3):
                         ws[f"A{row_idx}"] = row_data.get("Left.Mod", "")
                         ws[f"B{row_idx}"] = row_data.get("Left.Aisle", "")
