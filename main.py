@@ -9,7 +9,8 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
-# Added for Tab 4
+
+# Imports for the new 4th Tab
 from pptx import Presentation
 from pptx.util import Inches, Cm, Pt
 from pptx.enum.shapes import MSO_SHAPE
@@ -309,7 +310,6 @@ def generate_elevation_powerpoint(bay_types_data):
 
 # --- Main App ---
 st.set_page_config(layout="wide")
-
 st.title("Space Launch Quick Tools")
 st.markdown("A collection of tools for space launch operations.")
 
@@ -396,13 +396,12 @@ with tab1:
                 for group in bay_groups:
                     for bay_id in group['bays']:
                         with st.expander(f"View Diagram for **{bay_id}**"):
-                            try:
+                             try:
                                 base_label = bay_id.replace("BAY-", "")
                                 base_number = int(base_label[-3:])
                                 fig = plot_bin_diagram(bay_id, group['shelves'], group['bins_per_shelf'], base_number)
-                                if fig:
-                                    st.plotly_chart(fig, use_container_width=True)
-                            except Exception as e:
+                                if fig: st.plotly_chart(fig, use_container_width=True)
+                             except Exception as e:
                                 st.error(f"Could not generate diagram for {bay_id}: {e}")
             except Exception as e:
                 st.error(f"Error generating output: {str(e)}")
@@ -413,10 +412,10 @@ with tab2:
     bay_types_list = [ "Bulk Stock", "Case Flow", "Drawer", "Flat Apparel", "Hanger Rod", "Hangers", "Jewelry", "Library", "Library Deep", "Pallet", "Shoes", "Random Other Bin", "PassThrough" ]
     bay_usage_options = [ "*", "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS", "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book", "Chilled", "Chilled-FMP", "Corrosive", "Damage", "Damage Human Food", "Damage Pet Food", "Damage_HRV", "Damaged Aerosol", "Damaged Corrosive", "Damaged Flammable", "Misc Health Hazard", "Non Flammable Aerosols", "Non Inventory Storage-Facilities", "Non Inventory Storage-Other", "Non Inventory Storage-Stores", "Non Inventory-Black Totes", "Non Sort-Team Lift", "Non-Storage", "Non-TC Food", "Oxidizer", "Pet Food", "Produce", "Produce Backstock", "Produce Wetracks", "Reserve-Ambient", "Restricted Hazmat", "Semi-Chilled", "Shoes", "TC-Food", "Toxic", "Tropical" ]
     
-    bay_groups_tab2 = []
-    num_groups_tab2 = st.number_input("How many bay definition groups?", min_value=1, max_value=50, value=1, key="num_groups_bin_mapping")
+    bay_groups = []
+    num_groups = st.number_input("How many bay definition groups?", min_value=1, max_value=50, value=1, key="num_groups_bin_mapping")
 
-    for group_idx in range(num_groups_tab2):
+    for group_idx in range(num_groups):
         if f"bin_group_name_{group_idx}" not in st.session_state:
             st.session_state[f"bin_group_name_{group_idx}"] = f"Bay Definition Group {group_idx + 1}"
         def update_bin_group_name(idx=group_idx):
@@ -434,7 +433,7 @@ with tab2:
             with col2: width_cm = st.number_input("Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}")
             with col3: depth_cm = st.number_input("Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}")
             st.divider()
-            outlier_shelves_input = st.text_input("Outlier Shelves (optional, comma-separated, e.g., C,D)", key=f"outlier_shelves_{group_idx}", help="Define shelves with different dimensions from the default.")
+            outlier_shelves_input = st.text_area("Outlier Shelves (optional, comma-separated, e.g., C,D)", key=f"outlier_shelves_{group_idx}", help="Define shelves with different dimensions from the default.")
             st.caption("The app identifies a shelf by finding a capital letter followed by numbers at the end of the Bin ID (e.g., the 'C' in '...A208C120').")
             outlier_shelves = [s.strip().upper() for s in outlier_shelves_input.split(',') if s.strip()]
             outlier_dimensions = {}
@@ -452,10 +451,7 @@ with tab2:
             zone = st.text_input("Zone (e.g., Library (30D))", max_chars=25, key=f"zone_{group_idx}")
             if bin_ids_input:
                 bin_list = [b.strip() for line in bin_ids_input.splitlines() for b in re.split(r'[\t\s]+', line) if b.strip()]
-                if bin_list: bay_groups_tab2.append({"name": st.session_state[f"bin_group_name_{group_idx}"].strip(), "bin_ids": bin_list, "bay_definition": bay_definition, "height_cm": height_cm, "width_cm": width_cm, "depth_cm": depth_cm, "bay_usage": bay_usage, "bay_type": bay_type, "zone": zone, "outlier_dimensions": outlier_dimensions})
-    
-    if st.button("Generate Excel File", key="generate_bin_mapping_excel"):
-        pass
+                if bin_list: bay_groups.append({"name": st.session_state[f"bin_group_name_{group_idx}"].strip(), "bin_ids": bin_list, "bay_definition": bay_definition, "height_cm": height_cm, "width_cm": width_cm, "depth_cm": depth_cm, "bay_usage": bay_usage, "bay_type": bay_type, "zone": zone, "outlier_dimensions": outlier_dimensions})
 
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
@@ -509,9 +505,6 @@ with tab3:
     st.divider()
     st.markdown("**Step 3: Confirm Placement Rule**")
     st.radio("Low End Placement Rule (for single-sided signs)", ["Odd on Left / Even on Right", "Even on Left / Odd on Right"], key="eoa_placement_rule", horizontal=True)
-    if st.button("Generate EOA Signage", key="generate_eoa_signage"):
-        # Generation Logic for Tab 3
-        pass
 
 with tab4:
     st.header("Bay Elevation Generator 📐", divider='rainbow')
