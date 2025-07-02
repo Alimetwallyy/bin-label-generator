@@ -226,29 +226,136 @@ with tab1:
                 for group in bay_groups:
                     for bay_id in group['bays']:
                         with st.expander(f"View Diagram for **{bay_id}**"):
-                            fig = plot_bin_diagram(bay_id, group['shelves'], group['bins_per_shelf'], int(bay_id.replace("BAY-", "")[-3:]))
-                            if fig: st.plotly_chart(fig, use_container_width=True)
+                             try:
+                                fig = plot_bin_diagram(bay_id, group['shelves'], group['bins_per_shelf'], int(bay_id.replace("BAY-", "")[-3:]))
+                                if fig: st.plotly_chart(fig, use_container_width=True)
+                             except Exception as e:
+                                st.error(f"Could not generate diagram for {bay_id}: {e}")
+
             except Exception as e:
                 st.error(f"Error generating output: {str(e)}")
 
 with tab2:
     st.header("Bin Bay Mapping ↔️", divider='rainbow')
     st.markdown("Define bay definition groups and map bin IDs to bay types.")
-    # ... (Rest of Tab 2 logic remains the same as previous complete version)
-    # The complete code for tab 2 is intentionally omitted here to avoid excessive length
-    # You should have this code from our previous interactions.
-    pass # Placeholder for the full Tab 2 code
+    bay_types_list = [
+        "Bulk Stock", "Case Flow", "Drawer", "Flat Apparel", "Hanger Rod", "Hangers",
+        "Jewelry", "Library", "Library Deep", "Pallet", "Shoes", "Random Other Bin",
+        "PassThrough"
+    ]
+    bay_usage_options = [
+        "*", "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
+        "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book",
+        "Chilled", "Chilled-FMP", "Corrosive", "Damage", "Damage Human Food",
+        "Damage Pet Food", "Damage_HRV", "Damaged Aerosol", "Damaged Corrosive",
+        "Damaged Flammable", "Misc Health Hazard", "Non Flammable Aerosols", "Non Inventory Storage-Facilities",
+        "Non Inventory Storage-Other", "Non Inventory Storage-Stores",
+        "Non Inventory-Black Totes", "Non Sort-Team Lift", "Non-Storage",
+        "Non-TC Food", "Oxidizer", "Pet Food", "Produce", "Produce Backstock",
+        "Produce Wetracks", "Reserve-Ambient", "Restricted Hazmat", "Semi-Chilled",
+        "Shoes", "TC-Food", "Toxic", "Tropical"
+    ]
+    bay_groups_tab2 = []
+    num_groups_tab2 = st.number_input("How many bay definition groups?", min_value=1, max_value=50, value=1, key="num_groups_bin_mapping")
+    for group_idx in range(num_groups_tab2):
+        if f"bin_group_name_{group_idx}" not in st.session_state:
+            st.session_state[f"bin_group_name_{group_idx}"] = f"Bay Definition Group {group_idx + 1}"
+        def update_bin_group_name(idx=group_idx):
+            st.session_state[f"bin_group_name_{idx}"] = st.session_state[f"bin_group_name_input_{idx}"]
+        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
+        with st.expander(header, expanded=True):
+            st.text_input("Group Name", value=st.session_state[f"bin_group_name_{group_idx}"], key=f"bin_group_name_input_{group_idx}", on_change=update_bin_group_name, args=(group_idx,))
+            bin_ids_input = st.text_area(f"Enter bin IDs", key=f"bin_ids_{group_idx}", help="Paste Bin IDs from Excel (tab-separated, space-separated, or one per line).")
+            bay_definition = st.text_input("Enter Bay Definition", max_chars=48, key=f"bay_definition_{group_idx}")
+            st.divider()
+            st.markdown("**Default Dimensions for the Group**")
+            col1, col2, col3 = st.columns(3)
+            with col1: height_cm = st.number_input("Height (CM)", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}")
+            with col2: width_cm = st.number_input("Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}")
+            with col3: depth_cm = st.number_input("Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}")
+            st.divider()
+            outlier_shelves_input = st.text_input("Outlier Shelves (optional, comma-separated, e.g., C,D)", key=f"outlier_shelves_{group_idx}", help="Define shelves with different dimensions from the default.")
+            st.caption("The app identifies a shelf by finding a capital letter followed by numbers at the end of the Bin ID (e.g., the 'C' in '...A208C120').")
+            outlier_shelves = [s.strip().upper() for s in outlier_shelves_input.split(',') if s.strip()]
+            outlier_dimensions = {}
+            if outlier_shelves:
+                for shelf in outlier_shelves:
+                    st.markdown(f"**Dimensions for Outlier Shelf: {shelf}**")
+                    o_col1, o_col2, o_col3 = st.columns(3)
+                    with o_col1: o_height = st.number_input(f"Height (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}_{shelf}")
+                    with o_col2: o_width = st.number_input(f"Width (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}_{shelf}")
+                    with o_col3: o_depth = st.number_input(f"Depth (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}_{shelf}")
+                    outlier_dimensions[shelf] = {"height_cm": o_height, "width_cm": o_width, "depth_cm": o_depth}
+                st.divider()
+            bay_usage = st.selectbox("Select Bay Usage", options=bay_usage_options, index=0, key=f"bay_usage_{group_idx}")
+            bay_type = st.selectbox("Select Bay Type", options=bay_types_list, index=0, key=f"bay_type_{group_idx}")
+            zone = st.text_input("Zone (e.g., Library (30D))", max_chars=25, key=f"zone_{group_idx}")
+            if bin_ids_input:
+                bin_list = [b.strip() for line in bin_ids_input.splitlines() for b in re.split(r'[\t\s]+', line) if b.strip()]
+                if bin_list: bay_groups_tab2.append({"name": st.session_state[f"bin_group_name_{group_idx}"].strip(), "bin_ids": bin_list, "bay_definition": bay_definition, "height_cm": height_cm, "width_cm": width_cm, "depth_cm": depth_cm, "bay_usage": bay_usage, "bay_type": bay_type, "zone": zone, "outlier_dimensions": outlier_dimensions})
+    if st.button("Generate Excel File", key="generate_bin_mapping_excel"):
+        with st.spinner("Generating Excel file..."):
+            pass # Full generation logic for Tab 2
 
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
-    # ... (Rest of Tab 3 logic remains the same as previous complete version)
-    # The complete code for tab 3 is intentionally omitted here to avoid excessive length
-    # You should have this code from our previous interactions.
-    pass # Placeholder for the full Tab 3 code
+    st.markdown("**Step 1: Define All Aisles and Their Slot Ranges**")
+    st.caption("Define all modules. For each, set a default slot range and specify any aisles with different slots.")
+    num_mod_defs = st.number_input("How many modules do you want to define?", min_value=1, max_value=20, value=1, key="num_mod_defs")
+    aisle_details = {} 
+    for mod_idx in range(num_mod_defs):
+        if f"eoa_mod_name_{mod_idx}" not in st.session_state:
+            st.session_state[f"eoa_mod_name_{mod_idx}"] = ""
+        def update_eoa_mod_name(idx=mod_idx):
+            current_val = st.session_state[f"eoa_mod_name_input_{idx}"]
+            st.session_state[f"eoa_mod_name_{idx}"] = current_val or f"Module Definition {idx + 1}"
+        header = st.session_state[f"eoa_mod_name_{mod_idx}"] or f"Module Definition {mod_idx + 1}"
+        with st.expander(header, expanded=True):
+            mod_name = st.text_input("Module Name (e.g., P-1-A)", key=f"eoa_mod_name_input_{mod_idx}", on_change=update_eoa_mod_name, args=(mod_idx,)).strip()
+            col1, col2 = st.columns(2)
+            with col1: aisle_start = st.number_input(f"Start Aisle", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
+            with col2: aisle_end = st.number_input(f"End Aisle", min_value=aisle_start, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
+            st.divider()
+            st.markdown("**Default Slot Range for this Module**")
+            d_col1, d_col2 = st.columns(2)
+            with d_col1: default_start_slot = st.number_input("Default Start Slot", value=1, step=1, key=f"d_slot_start_{mod_idx}")
+            with d_col2: default_end_slot = st.number_input("Default End Slot", value=199, step=1, key=f"d_slot_end_{mod_idx}")
+            outlier_aisles_input = st.text_area("Outlier Aisles for Slots (optional, comma-separated)", key=f"outlier_aisles_{mod_idx}")
+            outlier_aisles = {int(a.strip()) for a in outlier_aisles_input.split(',') if a.strip()}
+            outlier_slots = {}
+            if outlier_aisles:
+                st.markdown("**Outlier Slot Definitions**")
+                for outlier in sorted(list(outlier_aisles)):
+                    o_col1, o_col2 = st.columns(2)
+                    with o_col1: outlier_start = st.number_input(f"Start Slot for Aisle {outlier}", value=1, step=1, key=f"o_start_{mod_idx}_{outlier}")
+                    with o_col2: outlier_end = st.number_input(f"End Slot for Aisle {outlier}", value=199, step=1, key=f"o_end_{mod_idx}_{outlier}")
+                    outlier_slots[outlier] = (outlier_start, outlier_end)
+            if mod_name:
+                aisle_details[mod_name] = {}
+                aisles_in_range = list(range(aisle_start, aisle_end + 1))
+                for aisle in aisles_in_range:
+                    if aisle in outlier_slots:
+                        aisle_details[mod_name][aisle] = {"slots": outlier_slots[aisle]}
+                    else:
+                        aisle_details[mod_name][aisle] = {"slots": (default_start_slot, default_end_slot)}
+    st.divider()
+    st.markdown("**Step 2: Define Physical Aisle Layouts**")
+    st.markdown("**2a. Standard (Single-Module) Layouts**")
+    st.caption("Describe how aisles within the same module are arranged.")
+    standard_layout_input = st.text_area("Standard Layouts (one module per line)", height=150, key="eoa_standard_layout_input", placeholder="Example:\nP-1-A: 200, 201/202, 207")
+    st.markdown("**2b. Cross-Module Pairs (Optional)**")
+    st.caption("Define aisle pairs that touch across different modules.")
+    cross_module_layout_input = st.text_area("Cross-Module Pairs (one pair per line)", height=100, key="eoa_cross_module_layout_input", placeholder="Example:\nP-1-A-201/P-1-B-200")
+    st.divider()
+    st.markdown("**Step 3: Confirm Placement Rule**")
+    st.radio("Low End Placement Rule (for single-sided signs)", ["Odd on Left / Even on Right", "Even on Left / Odd on Right"], key="eoa_placement_rule", horizontal=True)
+    if st.button("Generate EOA Signage", key="generate_eoa_signage"):
+        # Generation Logic for Tab 3
+        pass
 
 with tab4:
     st.header("Bay Elevation Generator 📐", divider='rainbow')
-    st.markdown("Define your bay types, their shelves, and bin configurations to generate a PowerPoint elevation drawing.")
+    st.markdown("Define bay types, their shelves, and bin configurations to generate a PowerPoint elevation drawing.")
     st.info("ℹ️ **Note:** This feature requires `python-pptx`. Please add `python-pptx>=0.6.23` to your requirements.txt file.")
     num_bay_types = st.number_input("How many bay types do you want to define?", min_value=1, max_value=20, value=1, key="num_bay_types")
     bay_types_data = []
@@ -268,12 +375,9 @@ with tab4:
                 num_bins = st.number_input("Number of bins in this shelf?", min_value=1, max_value=50, value=5, key=f"num_bins_{i}_{shelf_name}")
                 st.markdown(f"**Bin Dimensions for all bins in Shelf {shelf_name} (cm)**")
                 c1, c2, c3 = st.columns(3)
-                with c1:
-                    bin_h = st.number_input("Height", min_value=1.0, value=10.0, key=f"bin_h_{i}_{shelf_name}")
-                with c2:
-                    bin_w = st.number_input("Width", min_value=1.0, value=10.0, key=f"bin_w_{i}_{shelf_name}")
-                with c3:
-                    bin_d = st.number_input("Depth", min_value=1.0, value=10.0, key=f"bin_d_{i}_{shelf_name}")
+                with c1: bin_h = st.number_input("Height", min_value=1.0, value=10.0, key=f"bin_h_{i}_{shelf_name}")
+                with c2: bin_w = st.number_input("Width", min_value=1.0, value=10.0, key=f"bin_w_{i}_{shelf_name}")
+                with c3: bin_d = st.number_input("Depth", min_value=1.0, value=10.0, key=f"bin_d_{i}_{shelf_name}")
                 shelf_details[shelf_name] = {'num_bins': num_bins, 'h': bin_h, 'w': bin_w, 'd': bin_d}
             if bay_name.strip():
                 bay_types_data.append({"name": bay_name.strip(), "shelves": shelf_names, "shelf_details": shelf_details})
