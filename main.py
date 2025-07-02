@@ -266,7 +266,7 @@ with tab1:
 
     bay_groups = []
     duplicate_errors = []
-    num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=10, value=1, key="num_groups_bin_label")
+    num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=50, value=1, key="num_groups_bin_label")
 
     for group_idx in range(num_groups):
         if f"group_name_{group_idx}" not in st.session_state:
@@ -289,7 +289,6 @@ with tab1:
             shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
             shelves = list(string.ascii_uppercase[:shelf_count])
             
-            # UX Improvement: Add divider for better visual separation
             st.divider()
 
             bins_per_shelf = {}
@@ -342,7 +341,6 @@ with tab1:
                             style_excel(writer, group["name"], df, group["shelves"])
                 output.seek(0)
                 
-                # UX Improvement: Add a final summary message
                 st.success(f"✅ Success! Generated {total_labels_generated} labels for {total_bays_processed} bays across {len(bay_groups)} groups.")
                 st.download_button(
                     label="📥 Download Excel File",
@@ -398,7 +396,7 @@ with tab2:
         "Shoes", "TC-Food", "Toxic", "Tropical"
     ]
 
-    num_groups = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=10, value=1, key="num_groups_bin_mapping")
+    num_groups = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=50, value=1, key="num_groups_bin_mapping")
 
     bay_groups = []
     for group_idx in range(num_groups):
@@ -446,7 +444,6 @@ with tab2:
                 key=f"outlier_shelves_{group_idx}",
                 help="Define shelves with different dimensions from the default."
             )
-            # UX Improvement: Add caption to explain outlier logic
             st.caption("The app identifies a shelf by finding a capital letter followed by numbers at the end of the Bin ID (e.g., the 'C' in '...A208C120').")
             
             outlier_shelves = [s.strip().upper() for s in outlier_shelves_input.split(',') if s.strip()]
@@ -553,7 +550,6 @@ with tab2:
                         df.to_excel(writer, index=False, sheet_name="Bin Bay Mapping")
                     output.seek(0)
 
-                    # UX Improvement: Add a final summary message
                     st.success(f"✅ Success! Mapped {len(df)} bin IDs across {len(bay_groups)} groups.")
                     st.download_button(
                         label="📥 Download Excel File",
@@ -653,7 +649,6 @@ with tab3:
 
     st.divider()
     st.markdown("**Step 3: Confirm Placement Rule**")
-    # UX Improvement: Use session_state to make the choice persistent
     if 'eoa_placement_rule' not in st.session_state:
         st.session_state.eoa_placement_rule = "Odd on Left / Even on Right"
     
