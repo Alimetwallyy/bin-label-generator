@@ -286,12 +286,13 @@ with tab1:
             )
 
             bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
-            st.divider()
             shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
             shelves = list(string.ascii_uppercase[:shelf_count])
+            
+            # UX Improvement: Add divider for better visual separation
+            st.divider()
 
             bins_per_shelf = {}
-
             st.markdown("**Bins per Shelf**")
             for shelf in shelves:
                 count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
@@ -326,17 +327,23 @@ with tab1:
 
     if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_groups), key="generate_bin_labels"):
         with st.spinner("Generating bin labels and diagrams..."):
+            total_labels_generated = 0
+            total_bays_processed = 0
             output = io.BytesIO()
             try:
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     for group in bay_groups:
                         df = generate_bin_labels_table(group["name"], group["bays"], group["shelves"], group["bins_per_shelf"])
                         if not df.empty:
+                            shelf_cols = [col for col in df.columns if col not in ['BAY TYPE', 'AISLE', 'BAY ID']]
+                            total_labels_generated += df[shelf_cols].count().sum()
+                            total_bays_processed += df['BAY ID'].nunique()
                             df.to_excel(writer, index=False, startrow=1, sheet_name=group["name"])
                             style_excel(writer, group["name"], df, group["shelves"])
                 output.seek(0)
-
-                st.success("✅ Bin labels generated successfully!")
+                
+                # UX Improvement: Add a final summary message
+                st.success(f"✅ Success! Generated {total_labels_generated} labels for {total_bays_processed} bays across {len(bay_groups)} groups.")
                 st.download_button(
                     label="📥 Download Excel File",
                     data=output,
@@ -439,6 +446,9 @@ with tab2:
                 key=f"outlier_shelves_{group_idx}",
                 help="Define shelves with different dimensions from the default."
             )
+            # UX Improvement: Add caption to explain outlier logic
+            st.caption("The app identifies a shelf by finding a capital letter followed by numbers at the end of the Bin ID (e.g., the 'C' in '...A208C120').")
+            
             outlier_shelves = [s.strip().upper() for s in outlier_shelves_input.split(',') if s.strip()]
 
             outlier_dimensions = {}
@@ -543,7 +553,8 @@ with tab2:
                         df.to_excel(writer, index=False, sheet_name="Bin Bay Mapping")
                     output.seek(0)
 
-                    st.success("✅ Excel file generated successfully!")
+                    # UX Improvement: Add a final summary message
+                    st.success(f"✅ Success! Mapped {len(df)} bin IDs across {len(bay_groups)} groups.")
                     st.download_button(
                         label="📥 Download Excel File",
                         data=output,
@@ -557,7 +568,6 @@ with tab2:
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
     
-    # --- UX Improvement: Default Slots with Outliers ---
     st.markdown("**Step 1: Define All Aisles and Their Slot Ranges**")
     st.caption("Define all modules. For each, set a default slot range and specify any aisles with different slots.")
     
@@ -643,10 +653,14 @@ with tab3:
 
     st.divider()
     st.markdown("**Step 3: Confirm Placement Rule**")
-    placement_rule = st.radio(
+    # UX Improvement: Use session_state to make the choice persistent
+    if 'eoa_placement_rule' not in st.session_state:
+        st.session_state.eoa_placement_rule = "Odd on Left / Even on Right"
+    
+    st.radio(
         "Low End Placement Rule (for single-sided signs)",
         ["Odd on Left / Even on Right", "Even on Left / Odd on Right"],
-        key="placement_rule",
+        key="eoa_placement_rule",
         horizontal=True,
     )
 
@@ -672,16 +686,8 @@ with tab3:
                         errors.append(f"Details not found for cross-module pair: {pair_str}")
                         continue
                     
-                    signage_data.append({
-                        "Left.Mod": left_mod, "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}",
-                        "Right.Mod": right_mod, "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}",
-                        "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"
-                    })
-                    signage_data.append({
-                        "Left.Mod": right_mod, "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}",
-                        "Right.Mod": left_mod, "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}",
-                        "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"
-                    })
+                    signage_data.append({"Left.Mod": left_mod, "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}", "Right.Mod": right_mod, "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}", "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"})
+                    signage_data.append({"Left.Mod": right_mod, "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}", "Right.Mod": left_mod, "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}", "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"})
                     processed_aisles.add(f"{left_mod}-{left_aisle}")
                     processed_aisles.add(f"{right_mod}-{right_aisle}")
                 except Exception as e:
@@ -696,44 +702,33 @@ with tab3:
                     aisle_groups = [ag.strip() for ag in aisles_part.split(',') if ag.strip()]
 
                     for group in aisle_groups:
-                        # --- Standard Two-Sided ---
                         if "/" in group:
                             left_aisle_str, right_aisle_str = group.split('/')
                             left_aisle, right_aisle = int(left_aisle_str), int(right_aisle_str)
-
                             if f"{mod_name}-{left_aisle}" in processed_aisles or f"{mod_name}-{right_aisle}" in processed_aisles: continue
-
                             left_details = aisle_details.get(mod_name, {}).get(left_aisle)
                             right_details = aisle_details.get(mod_name, {}).get(right_aisle)
-
                             if not left_details or not right_details:
                                 errors.append(f"Details not found for pair {group} in module {mod_name}")
                                 continue
-                            
                             signage_data.append({"Left.Mod": mod_name, "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}", "Right.Mod": mod_name, "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}", "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"})
                             signage_data.append({"Left.Mod": mod_name, "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}", "Right.Mod": mod_name, "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}", "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"})
                             processed_aisles.add(f"{mod_name}-{left_aisle}")
                             processed_aisles.add(f"{mod_name}-{right_aisle}")
-                        
-                        # --- Standard One-Sided ---
                         else:
                             aisle = int(group)
                             if f"{mod_name}-{aisle}" in processed_aisles: continue
-                            
                             details = aisle_details.get(mod_name, {}).get(aisle)
                             if not details:
                                 errors.append(f"Details not found for single aisle {aisle} in module {mod_name}")
                                 continue
-
                             is_even = aisle % 2 == 0
-                            low_end_side = "Right" if (placement_rule == "Odd on Left / Even on Right" and is_even) or (placement_rule == "Even on Left / Odd on Right" and not is_even) else "Left"
+                            low_end_side = "Right" if (st.session_state.eoa_placement_rule == "Odd on Left / Even on Right" and is_even) or (st.session_state.eoa_placement_rule == "Even on Left / Odd on Right" and not is_even) else "Left"
                             high_end_side = "Left" if low_end_side == "Right" else "Right"
-                            
                             sign_low = {"Deployment Location": f"Low End of Aisle {aisle}"}
                             if low_end_side == "Left": sign_low.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
                             else: sign_low.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
                             signage_data.append(sign_low)
-                            
                             sign_high = {"Deployment Location": f"High End of Aisle {aisle}"}
                             if high_end_side == "Left": sign_high.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
                             else: sign_high.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
@@ -747,27 +742,24 @@ with tab3:
                 st.error(error)
         
         if signage_data:
+            st.success(f"✅ Success! Generated {len(signage_data)} sign definitions.")
             st.subheader("Preview Signage Data")
             df_preview = pd.DataFrame(signage_data)
             st.dataframe(df_preview, use_container_width=True)
-
-            # --- Excel Generation ---
+            
             output = io.BytesIO()
             wb = Workbook()
             ws = wb.active
             ws.title = "EOA Signage"
-
             ws.merge_cells("A1:C1"); ws["A1"] = "Left Side of Sign"
             ws.merge_cells("E1:G1"); ws["E1"] = "Right Side of Sign"
             ws["A2"] = "Mod"; ws["B2"] = "Aisle"; ws["C2"] = "Slots"
             ws["E2"] = "Mod"; ws["F2"] = "Aisle"; ws["G2"] = "Slots"
             ws["H2"] = "Deployment Location"
-
             black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
             white_font = Font(color="FFFFFF", bold=True)
             center_align = Alignment(horizontal="center", vertical="center")
             thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-
             for row in ws["A1:H2"]:
                 for cell in row:
                     cell.fill = black_fill
@@ -775,7 +767,6 @@ with tab3:
                     if cell.value:
                         cell.font = white_font
                         cell.alignment = center_align
-            
             for row_idx, row_data in enumerate(signage_data, start=3):
                 ws[f"A{row_idx}"] = row_data.get("Left.Mod", "")
                 ws[f"B{row_idx}"] = row_data.get("Left.Aisle", "")
@@ -787,11 +778,9 @@ with tab3:
                 for col in "ABCEFGH":
                     ws[f"{col}{row_idx}"].alignment = center_align
                     ws[f"{col}{row_idx}"].border = thin_border
-
             wb.save(output)
             output.seek(0)
             
-            st.success("✅ EOA Signage Excel generated successfully!")
             st.download_button(
                 label="📥 Download EOA Signage Excel",
                 data=output,
