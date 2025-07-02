@@ -9,8 +9,6 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
-
-# Imports for PowerPoint generation
 from pptx import Presentation
 from pptx.util import Inches, Cm, Pt
 from pptx.enum.shapes import MSO_SHAPE
@@ -43,15 +41,9 @@ def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
             base_number = int(base_label[-3:])
             aisle_match = re.search(r'\d{3}', base_label)
             aisle = aisle_match.group(0) if aisle_match else ""
-
             max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves) if shelves else 1
-
             for i in range(max_bins):
-                row = {
-                    'BAY TYPE': group_name,
-                    'AISLE': aisle,
-                    'BAY ID': bay
-                }
+                row = {'BAY TYPE': group_name, 'AISLE': aisle, 'BAY ID': bay}
                 for shelf in shelves:
                     shelf_bin_count = bins_per_shelf.get(shelf, 0)
                     if i < shelf_bin_count:
@@ -69,7 +61,6 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
         fig = go.Figure()
         colors = sns.color_palette("colorblind", len(shelves) if shelves else 1).as_hex()
         shelf_colors = {shelf: colors[i % len(colors)] for i, shelf in enumerate(shelves)} if shelves else {}
-
         for col_idx, shelf in enumerate(shelves):
             shelf_bins = bins_per_shelf.get(shelf, 0)
             for i in range(shelf_bins):
@@ -78,7 +69,6 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
                 y0, y1 = -i - 0.4, -i + 0.4
                 fig.add_shape(type="rect", x0=x0, y0=y0, x1=x1, y1=y1, fillcolor=shelf_colors.get(shelf, "lightblue"), line=dict(color="black"))
                 fig.add_trace(go.Scatter(x=[(x0 + x1) / 2], y=[(y0 + y1) / 2], text=[bin_label], mode="text", hoverinfo="text", showlegend=False))
-
         fig.update_layout(title=f"Bin Layout for {bay_id}", xaxis=dict(tickmode="array", tickvals=list(range(len(shelves))), ticktext=shelves if shelves else ["No Shelves"], showgrid=False, zeroline=False), yaxis=dict(showgrid=False, zeroline=False, autorange="reversed"), showlegend=bool(shelves), legend_title_text="Shelves", width=200 * (len(shelves) if shelves else 1), height=100 * (max(bins_per_shelf.values(), default=1) if bins_per_shelf else 1), margin=dict(l=20, r=20, t=50, b=20))
         for shelf in shelves:
             fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name=shelf, marker=dict(size=10, color=shelf_colors.get(shelf, "lightblue"))))
@@ -200,18 +190,20 @@ tab1, tab2, tab3, tab4 = st.tabs(["Bin Label Generator", "Bin Bay Mapping", "EOA
 
 with tab1:
     st.header("Bin Label Generator 🏷️", divider='rainbow')
-    st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels. Bay IDs must be unique (e.g., BAY-001-001-001).")
-
+    st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels.")
+    
     bay_groups_tab1 = []
     num_groups_tab1 = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=50, value=1, key="num_groups_bin_label")
 
     for group_idx in range(num_groups_tab1):
         if f"group_name_{group_idx}" not in st.session_state:
             st.session_state[f"group_name_{group_idx}"] = f"Bay Group {group_idx + 1}"
-        def update_group_name(idx=group_idx): st.session_state[f"group_name_{idx}"] = st.session_state[f"group_name_input_{idx}"]
+        def update_group_name(idx=group_idx):
+            st.session_state[f"group_name_{idx}"] = st.session_state[f"group_name_input_{idx}"]
         header = st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}"
+        
         with st.expander(header, expanded=True):
-            st.text_input("Group Name", value=st.session_state[f"group_name_{group_idx}"], key=f"group_name_input_{group_idx}", on_change=update_group_name)
+            st.text_input("Group Name", value=st.session_state[f"group_name_{group_idx}"], key=f"group_name_input_{group_idx}", on_change=update_group_name, args=(group_idx,))
             bays_input = st.text_area(f"Enter bay IDs (one per line)", key=f"bays_{group_idx}")
             shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
             shelves = list(string.ascii_uppercase[:shelf_count])
@@ -220,30 +212,70 @@ with tab1:
             st.markdown("**Bins per Shelf**")
             for shelf in shelves:
                 bins_per_shelf[shelf] = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
+            
             if bays_input:
                 bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
-                if bay_list: bay_groups_tab1.append({"name": st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}", "bays": bay_list, "shelves": shelves, "bins_per_shelf": bins_per_shelf})
+                if bay_list:
+                    bay_groups_tab1.append({"name": st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}", "bays": bay_list, "shelves": shelves, "bins_per_shelf": bins_per_shelf})
 
-    # Validation and Generation logic for Tab 1
-    # ...
+    if st.button("Generate Bin Labels", key="generate_bin_labels"):
+        # Generation Logic for Tab 1
+        with st.spinner("Generating bin labels and diagrams..."):
+            total_labels_generated = 0
+            total_bays_processed = 0
+            output = io.BytesIO()
+            try:
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    for group in bay_groups_tab1:
+                        df = generate_bin_labels_table(group["name"], group["bays"], group["shelves"], group["bins_per_shelf"])
+                        if not df.empty:
+                            shelf_cols = [col for col in df.columns if col not in ['BAY TYPE', 'AISLE', 'BAY ID']]
+                            total_labels_generated += df[shelf_cols].count().sum()
+                            total_bays_processed += df['BAY ID'].nunique()
+                            df.to_excel(writer, index=False, startrow=1, sheet_name=group["name"])
+                            style_excel(writer, group["name"], df, group["shelves"])
+                output.seek(0)
+                st.success(f"✅ Success! Generated {total_labels_generated} labels for {total_bays_processed} bays across {len(bay_groups_tab1)} groups.")
+                st.download_button(label="📥 Download Excel File", data=output, file_name="bin_labels.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.subheader("🖼️ Interactive Bin Layout Diagrams")
+                st.caption("Click on a bay to expand its visual layout.")
+                for group in bay_groups_tab1:
+                    for bay_id in group['bays']:
+                        with st.expander(f"View Diagram for **{bay_id}**"):
+                            fig = plot_bin_diagram(bay_id, group['shelves'], group['bins_per_shelf'], int(bay_id.replace("BAY-", "")[-3:]))
+                            if fig: st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"Error generating output: {str(e)}")
 
 with tab2:
     st.header("Bin Bay Mapping ↔️", divider='rainbow')
     st.markdown("Define bay definition groups and map bin IDs to bay types.")
     
     bay_groups_tab2 = []
-    num_groups_tab2 = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=50, value=1, key="num_groups_bin_mapping")
+    num_groups_tab2 = st.number_input("How many bay definition groups?", min_value=1, max_value=50, value=1, key="num_groups_bin_mapping")
 
-    # ... The rest of the UI and logic for Tab 2 ...
+    for group_idx in range(num_groups_tab2):
+        if f"bin_group_name_{group_idx}" not in st.session_state:
+            st.session_state[f"bin_group_name_{group_idx}"] = f"Bay Definition Group {group_idx + 1}"
+        def update_bin_group_name(idx=group_idx):
+            st.session_state[f"bin_group_name_{idx}"] = st.session_state[f"bin_group_name_input_{idx}"]
+        header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
+        
+        with st.expander(header, expanded=True):
+            st.text_input("Group Name", value=st.session_state[f"bin_group_name_{group_idx}"], key=f"bin_group_name_input_{group_idx}", on_change=update_bin_group_name, args=(group_idx,))
+            # ... The rest of the inputs for Tab 2
+            
+    if st.button("Generate Excel", key="generate_bin_mapping_excel"):
+        # Generation Logic for Tab 2
+        pass
 
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
-    
-    # ... The rest of the UI and logic for Tab 3 ...
-    
+    # ... The rest of the UI and logic for Tab 3 from the previous version ...
+
 with tab4:
     st.header("Bay Elevation Generator 📐", divider='rainbow')
-    st.markdown("Define your bay types, their shelves, and bin configurations to generate a PowerPoint elevation drawing.")
+    st.markdown("Define bay types, their shelves, and bin configurations to generate a PowerPoint elevation drawing.")
     st.info("ℹ️ **Note:** This feature requires `python-pptx`. Please add `python-pptx>=0.6.23` to your requirements.txt file.")
 
     num_bay_types = st.number_input("How many bay types do you want to define?", min_value=1, max_value=20, value=1, key="num_bay_types")
@@ -260,7 +292,7 @@ with tab4:
         header = st.session_state[f"bay_type_name_{i}"].strip() or f"Bay Type {i + 1}"
 
         with st.expander(header, expanded=True):
-            bay_name = st.text_input("Bay Type Name", key=f"bay_type_name_input_{i}", on_change=update_bay_type_name)
+            bay_name = st.text_input("Bay Type Name", value=st.session_state[f"bay_type_name_{i}"], key=f"bay_type_name_input_{i}", on_change=update_bay_type_name, args=(i,))
             
             shelf_count = st.number_input("Number of shelves in this bay?", min_value=1, max_value=26, value=3, key=f"elevation_shelf_count_{i}")
             shelf_names = list(string.ascii_uppercase[:shelf_count])
@@ -297,7 +329,6 @@ with tab4:
             with st.spinner("Generating PowerPoint file..."):
                 try:
                     ppt_buffer = generate_elevation_powerpoint(bay_types_data)
-                    
                     st.success(f"✅ Success! Generated a PowerPoint with {len(bay_types_data)} slides.")
                     st.download_button(
                         label="📥 Download PowerPoint File",
