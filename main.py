@@ -510,7 +510,6 @@ with tab2:
             output = io.BytesIO()
             try:
                 data = []
-                cm_to_inch = 0.393701
                 for group in bay_groups:
                     bay_def = group["bay_definition"]
                     parsed = parse_bay_definition(bay_def)
@@ -535,9 +534,9 @@ with tab2:
                         data.append({
                             "ScannableId": bin_id,
                             "Distance Index": None,
-                            "Depth(inch)": round(current_d * cm_to_inch, 2) if current_d else None,
-                            "Width(inch)": round(current_w * cm_to_inch, 2) if current_w else None,
-                            "Height(inch)": round(current_h * cm_to_inch, 2) if current_h else None,
+                            "Depth": round(current_d , 2) if current_d else None,
+                            "Width": round(current_w , 2) if current_w else None,
+                            "Height": round(current_h , 2) if current_h else None,
                             "Zone": group["zone"],
                             "Bay Definition": bay_def,
                             "bin_size": f"{int(current_d)}Deep" if current_d else "",
