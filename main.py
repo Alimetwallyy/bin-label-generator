@@ -32,6 +32,7 @@ def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
     data = []
     for bay in bay_ids:
         try:
+            bay = bay.strip()  # remove accidental whitespace
             base_label = bay.replace("BAY-", "")
             base_number = int(base_label[-3:])
             aisle_match = re.search(r'\d{3}', base_label)
@@ -77,7 +78,8 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
                     y1=y1,
                     fillcolor=shelf_colors.get(shelf, "lightblue"),
                     line=dict(color="black"),
-                    label=dict(text=bin_label, textposition="middle center", font=dict(size=10)),
+                    # note: Plotly rect shapes don't support a `label` param in older versions,
+                    # we keep the text as a separate trace below.
                 )
                 fig.add_trace(
                     go.Scatter(
@@ -285,7 +287,11 @@ with tab1:
                 on_change=update_group_name
             )
 
-            bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
+            bays_input = st.text_area(
+                f"Enter bay IDs (you can paste from Excel — multiple columns/rows are accepted)",
+                key=f"bays_{group_idx}",
+                help="You can paste multiple columns/rows copied from Excel. Separators recognized: tabs, spaces, commas, semicolons, or newlines."
+            )
             shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
             shelves = list(string.ascii_uppercase[:shelf_count])
             
@@ -297,8 +303,16 @@ with tab1:
                 count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
                 bins_per_shelf[shelf] = count
 
+            # --- UPDATED parsing: accept multi-column Excel paste (tabs/spaces/comma/semicolon)
             if bays_input:
-                bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
+                bay_list = []
+                lines = [ln for ln in bays_input.splitlines() if ln.strip()]
+                for line in lines:
+                    # split on tabs, commas, semicolons, or whitespace sequences
+                    parts = re.split(r'[\t,; \u00A0]+', line.strip())
+                    for part in parts:
+                        if part:
+                            bay_list.append(part.strip())
                 if bay_list:
                     bay_groups.append({
                         "name": st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}",
