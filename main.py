@@ -9,7 +9,6 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
-
 # Add "Created By Alimomet" in top left
 st.markdown("""
     <style>
@@ -27,19 +26,15 @@ st.markdown("""
     </style>
     <div class="created-by">Created By Alimomet</div>
 """, unsafe_allow_html=True)
-
 def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
     data = []
     for bay in bay_ids:
         try:
-            bay = bay.strip()  # remove accidental whitespace
             base_label = bay.replace("BAY-", "")
             base_number = int(base_label[-3:])
             aisle_match = re.search(r'\d{3}', base_label)
             aisle = aisle_match.group(0) if aisle_match else ""
-
             max_bins = max(bins_per_shelf.get(shelf, 0) for shelf in shelves) if shelves else 1
-
             for i in range(max_bins):
                 row = {
                     'BAY TYPE': group_name,
@@ -57,13 +52,11 @@ def generate_bin_labels_table(group_name, bay_ids, shelves, bins_per_shelf):
         except Exception as e:
             st.error(f"Error processing bay ID '{bay}': {str(e)}")
     return pd.DataFrame(data)
-
 def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
     try:
         fig = go.Figure()
         colors = sns.color_palette("colorblind", len(shelves) if shelves else 1).as_hex()
         shelf_colors = {shelf: colors[i % len(colors)] for i, shelf in enumerate(shelves)} if shelves else {}
-
         for col_idx, shelf in enumerate(shelves):
             shelf_bins = bins_per_shelf.get(shelf, 0)
             for i in range(shelf_bins):
@@ -78,8 +71,7 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
                     y1=y1,
                     fillcolor=shelf_colors.get(shelf, "lightblue"),
                     line=dict(color="black"),
-                    # note: Plotly rect shapes don't support a `label` param in older versions,
-                    # we keep the text as a separate trace below.
+                    label=dict(text=bin_label, textposition="middle center", font=dict(size=10)),
                 )
                 fig.add_trace(
                     go.Scatter(
@@ -91,7 +83,6 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
                         showlegend=False,
                     )
                 )
-
         fig.update_layout(
             title=f"Bin Layout for {bay_id}",
             xaxis=dict(
@@ -112,7 +103,6 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
             height=100 * (max(bins_per_shelf.values(), default=1) if bins_per_shelf else 1),
             margin=dict(l=20, r=20, t=50, b=20),
         )
-
         for shelf in shelves:
             fig.add_trace(
                 go.Scatter(
@@ -123,12 +113,10 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
                     marker=dict(size=10, color=shelf_colors.get(shelf, "lightblue")),
                 )
             )
-
         return fig
     except Exception as e:
         st.error(f"Error generating diagram for '{bay_id}': {str(e)}")
         return None
-
 def style_excel(writer, sheet_name, df, shelves):
     try:
         ws = writer.sheets[sheet_name]
@@ -137,14 +125,12 @@ def style_excel(writer, sheet_name, df, shelves):
                         top=Side(style='thin'), bottom=Side(style='thin'))
         bold_font = Font(bold=True)
         center_align = Alignment(horizontal="center", vertical="center")
-
         hex_colors = [
             "339900", "9B30FF", "FFFF00", "00FFFF", "CC0000", "F88017",
             "FF00FF", "996600", "00FF00", "FF6565", "9999FE"
         ]
         
         styling_colors = ["FFFFFF"] + hex_colors
-
         if shelves:
             ws.merge_cells('A1:C1')
             ws['A1'] = "HEX COLOR CODES ->"
@@ -160,20 +146,17 @@ def style_excel(writer, sheet_name, df, shelves):
                 ws[f"{col_letter}1"].font = bold_font
                 ws[f"{col_letter}1"].alignment = center_align
                 ws[f"{col_letter}1"].border = border
-
                 ws[f"{col_letter}2"] = shelves[i]
                 ws[f"{col_letter}2"].fill = PatternFill(start_color=hex_color, end_color=hex_color, fill_type="solid")
                 ws[f"{col_letter}2"].font = bold_font
                 ws[f"{col_letter}2"].alignment = center_align
                 ws[f"{col_letter}2"].border = border
-
         header_row = 2 if shelves else 1
         for col in range(1, df.shape[1] + 1):
             cell = ws.cell(row=header_row, column=col)
             cell.font = bold_font
             cell.alignment = center_align
             cell.border = border
-
         for row in ws.iter_rows(min_row=header_row + 1, max_row=ws.max_row, max_col=ws.max_column):
             for cell in row:
                 if cell.value is not None:
@@ -182,57 +165,44 @@ def style_excel(writer, sheet_name, df, shelves):
                     cell.border = border
     except Exception as e:
         st.error(f"Error styling Excel sheet '{sheet_name}': {str(e)}")
-
 def check_duplicate_bay_ids(bay_groups):
     errors = []
     all_bay_ids = {}
-
     for group_idx, group in enumerate(bay_groups):
         group_name = group["name"]
         bay_ids = [bay_id.strip().upper() for bay_id in group["bays"] if bay_id.strip()]
-
         seen_in_group = set()
         for bay_id in bay_ids:
             if bay_id in seen_in_group:
                 errors.append(f"⚠️ Duplicate bay ID '{bay_id}' found in {group_name}.")
             seen_in_group.add(bay_id)
-
             if bay_id not in all_bay_ids:
                 all_bay_ids[bay_id] = [group_name]
             elif group_name not in all_bay_ids[bay_id]:
                 all_bay_ids[bay_id].append(group_name)
-
     for bay_id, groups in all_bay_ids.items():
         if len(groups) > 1:
             errors.append(f"⚠️ Bay ID '{bay_id}' is duplicated across groups: {', '.join(groups)}.")
-
     return errors
-
 def check_duplicate_bin_ids(bay_groups):
     errors = []
     all_bin_ids = {}
-
     for group_idx, group in enumerate(bay_groups):
         group_name = group["name"]
         bin_ids = [bin_id.strip().upper() for bin_id in group["bin_ids"] if bin_id.strip()]
-
         seen_in_group = set()
         for bin_id in bin_ids:
             if bin_id in seen_in_group:
                 errors.append(f"⚠️ Duplicate bin ID '{bin_id}' found in {group_name}.")
             seen_in_group.add(bin_id)
-
             if bin_id not in all_bin_ids:
                 all_bin_ids[bin_id] = [group_name]
             elif group_name not in all_bin_ids[bin_id]:
                 all_bin_ids[bin_id].append(group_name)
-
     for bin_id, groups in all_bin_ids.items():
         if len(groups) > 1:
             errors.append(f"⚠️ Bin ID '{bin_id}' is duplicated across groups: {', '.join(groups)}.")
-
     return errors
-
 def parse_bay_definition(bay_definition):
     try:
         if not bay_definition:
@@ -240,7 +210,6 @@ def parse_bay_definition(bay_definition):
         return {"bay_definition": bay_definition}
     except Exception as e:
         return {"error": str(e)}
-
 def check_duplicate_aisles(mod_groups):
     errors = []
     all_aisles = {}
@@ -254,31 +223,23 @@ def check_duplicate_aisles(mod_groups):
             else:
                 all_aisles[aisle_key] = mod
     return errors
-
 # --- Streamlit App ---
 st.title("Space Launch Quick Tools")
 st.markdown("A collection of tools for space launch operations.")
-
 # Create tabs
 tab1, tab2, tab3 = st.tabs(["Bin Label Generator", "Bin Bay Mapping", "EOA Generator"])
-
 with tab1:
     st.header("Bin Label Generator 🏷️", divider='rainbow')
     st.markdown("Define bay groups, shelves, and bins per shelf to generate structured bin labels. Bay IDs must be unique (e.g., BAY-001-001-001).")
-
     bay_groups = []
     duplicate_errors = []
     num_groups = st.number_input("How many bay groups do you want to define?", min_value=1, max_value=50, value=1, key="num_groups_bin_label")
-
     for group_idx in range(num_groups):
         if f"group_name_{group_idx}" not in st.session_state:
             st.session_state[f"group_name_{group_idx}"] = f"Bay Group {group_idx + 1}"
-
         def update_group_name(group_idx=group_idx):
             st.session_state[f"group_name_{group_idx}"] = st.session_state[f"group_name_input_{group_idx}"]
-
         header = st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}"
-
         with st.expander(header, expanded=True):
             st.text_input(
                 "Group Name",
@@ -286,33 +247,18 @@ with tab1:
                 key=f"group_name_input_{group_idx}",
                 on_change=update_group_name
             )
-
-            bays_input = st.text_area(
-                f"Enter bay IDs (you can paste from Excel — multiple columns/rows are accepted)",
-                key=f"bays_{group_idx}",
-                help="You can paste multiple columns/rows copied from Excel. Separators recognized: tabs, spaces, commas, semicolons, or newlines."
-            )
+            bays_input = st.text_area(f"Enter bay IDs (one per line, e.g., BAY-001-001-001)", key=f"bays_{group_idx}")
             shelf_count = st.number_input("How many shelves?", min_value=1, max_value=26, value=3, key=f"shelf_count_{group_idx}")
             shelves = list(string.ascii_uppercase[:shelf_count])
             
             st.divider()
-
             bins_per_shelf = {}
             st.markdown("**Bins per Shelf**")
             for shelf in shelves:
                 count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
                 bins_per_shelf[shelf] = count
-
-            # --- UPDATED parsing: accept multi-column Excel paste (tabs/spaces/comma/semicolon)
             if bays_input:
-                bay_list = []
-                lines = [ln for ln in bays_input.splitlines() if ln.strip()]
-                for line in lines:
-                    # split on tabs, commas, semicolons, or whitespace sequences
-                    parts = re.split(r'[\t,; \u00A0]+', line.strip())
-                    for part in parts:
-                        if part:
-                            bay_list.append(part.strip())
+                bay_list = [b.strip() for b in bays_input.splitlines() if b.strip()]
                 if bay_list:
                     bay_groups.append({
                         "name": st.session_state[f"group_name_{group_idx}"].strip() or f"Bay Group {group_idx + 1}",
@@ -326,7 +272,6 @@ with tab1:
                             st.markdown("**Errors in this group:**")
                             for error in temp_errors:
                                 st.warning(error)
-
     if bay_groups:
         duplicate_errors = check_duplicate_bay_ids(bay_groups)
         with st.expander("⚠️ Duplicate Errors", expanded=bool(duplicate_errors)):
@@ -337,7 +282,6 @@ with tab1:
                 st.info("No duplicate bay IDs detected.")
     else:
         st.warning("⚠️ Please define at least one bay group with valid bay IDs.")
-
     if st.button("Generate Bin Labels", disabled=bool(duplicate_errors or not bay_groups), key="generate_bin_labels"):
         with st.spinner("Generating bin labels and diagrams..."):
             total_labels_generated = 0
@@ -363,7 +307,6 @@ with tab1:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="download_excel"
                 )
-
                 st.subheader("🖼️ Interactive Bin Layout Diagrams")
                 st.caption("Click on a bay to expand its visual layout.")
                 for group in bay_groups:
@@ -381,17 +324,14 @@ with tab1:
                             st.error(f"Error processing diagram for bay ID '{bay_id}': {str(e)}")
             except Exception as e:
                 st.error(f"Error generating output: {str(e)}")
-
 with tab2:
     st.header("Bin Bay Mapping ↔️", divider='rainbow')
     st.markdown("Define bay definition groups and map bin IDs to bay types.")
-
     bay_types = [
         "Bulk Stock", "Case Flow", "Drawer", "Flat Apparel", "Hanger Rod", "Hangers",
         "Jewelry", "Library", "Library Deep", "Pallet", "Shoes", "Random Other Bin",
         "PassThrough"
     ]
-
     bay_usage_options = [
         "*", "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
         "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book",
@@ -409,19 +349,14 @@ with tab2:
         "Produce Wetracks", "Reserve-Ambient", "Restricted Hazmat", "Semi-Chilled",
         "Shoes", "TC-Food", "Toxic", "Tropical"
     ]
-
     num_groups = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=50, value=1, key="num_groups_bin_mapping")
-
     bay_groups = []
     for group_idx in range(num_groups):
         if f"bin_group_name_{group_idx}" not in st.session_state:
             st.session_state[f"bin_group_name_{group_idx}"] = f"Bay Definition Group {group_idx + 1}"
-
         def update_bin_group_name(group_idx=group_idx):
             st.session_state[f"bin_group_name_{group_idx}"] = st.session_state[f"bin_group_name_input_{group_idx}"]
-
         header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
-
         with st.expander(header, expanded=True):
             st.text_input(
                 "Group Name",
@@ -429,13 +364,11 @@ with tab2:
                 key=f"bin_group_name_input_{group_idx}",
                 on_change=update_bin_group_name
             )
-
             bin_ids_input = st.text_area(
                 f"Enter bin IDs (e.g., P-1-B217A262)",
                 key=f"bin_ids_{group_idx}",
                 help="Paste Bin IDs from Excel (tab-separated, space-separated, or one per line)."
             )
-
             bay_definition = st.text_input(
                 "Enter Bay Definition",
                 max_chars=48,
@@ -461,7 +394,6 @@ with tab2:
             st.caption("The app identifies a shelf by finding a capital letter followed by numbers at the end of the Bin ID (e.g., the 'C' in '...A208C120').")
             
             outlier_shelves = [s.strip().upper() for s in outlier_shelves_input.split(',') if s.strip()]
-
             outlier_dimensions = {}
             if outlier_shelves:
                 for shelf in outlier_shelves:
@@ -479,13 +411,10 @@ with tab2:
                         "depth_cm": o_depth,
                     }
                 st.divider()
-
             bay_usage = st.selectbox("Select Bay Usage", options=bay_usage_options, index=0, key=f"bay_usage_{group_idx}")
             bay_type = st.selectbox("Select Bay Type", options=bay_types, index=0, key=f"bay_type_{group_idx}")
-
             st.markdown("Enter Zone bins are inside followed by depth of bays. ex: Library (30D)")
             zone = st.text_input("Zone", max_chars=25, key=f"zone_{group_idx}")
-
             if bin_ids_input:
                 bin_list = [b.strip() for line in bin_ids_input.splitlines() for b in re.split(r'[\t\s]+', line) if b.strip()]
                 if bin_list:
@@ -507,7 +436,6 @@ with tab2:
                             st.markdown("**Errors in this group:**")
                             for error in temp_errors:
                                 st.warning(error)
-
     if bay_groups:
         duplicate_errors = check_duplicate_bin_ids(bay_groups)
         with st.expander("⚠️ Duplicate Errors", expanded=bool(duplicate_errors)):
@@ -518,7 +446,6 @@ with tab2:
                 st.info("No duplicate bin IDs detected.")
     else:
         st.warning("⚠️ Please define at least one bay definition group with valid bin IDs.")
-
     if st.button("Generate Excel", disabled=bool(duplicate_errors or not bay_groups), key="generate_bin_mapping_excel"):
         with st.spinner("Generating Excel file..."):
             output = io.BytesIO()
@@ -530,12 +457,10 @@ with tab2:
                     if "error" in parsed:
                         st.error(f"Invalid bay definition in {group['name']}: {parsed['error']}")
                         break
-
                     for bin_id in group["bin_ids"]:
                         current_h = group["height_cm"]
                         current_w = group["width_cm"]
                         current_d = group["depth_cm"]
-
                         match = re.search(r'([A-Z])\d+$', bin_id)
                         if match:
                             found_shelf = match.group(1)
@@ -562,7 +487,6 @@ with tab2:
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         df.to_excel(writer, index=False, sheet_name="Bin Bay Mapping")
                     output.seek(0)
-
                     st.success(f"✅ Success! Mapped {len(df)} bin IDs across {len(bay_groups)} groups.")
                     st.download_button(
                         label="📥 Download Excel File",
@@ -573,7 +497,6 @@ with tab2:
                     )
             except Exception as e:
                 st.error(f"Error generating Excel: {str(e)}")
-
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
     
@@ -587,13 +510,10 @@ with tab3:
     for mod_idx in range(num_mod_defs):
         if f"eoa_mod_name_{mod_idx}" not in st.session_state:
             st.session_state[f"eoa_mod_name_{mod_idx}"] = ""
-
         def update_eoa_mod_name(idx=mod_idx):
             current_val = st.session_state[f"eoa_mod_name_input_{idx}"]
             st.session_state[f"eoa_mod_name_{idx}"] = current_val or f"Module Definition {idx + 1}"
-
         header = st.session_state[f"eoa_mod_name_{mod_idx}"] or f"Module Definition {mod_idx + 1}"
-
         with st.expander(header, expanded=True):
             mod_name = st.text_input(
                 "Module Name (e.g., P-1-A)",
@@ -615,10 +535,8 @@ with tab3:
                 default_start_slot = st.number_input("Default Start Slot", value=1, step=1, key=f"d_slot_start_{mod_idx}")
             with d_col2:
                 default_end_slot = st.number_input("Default End Slot", value=199, step=1, key=f"d_slot_end_{mod_idx}")
-
             outlier_aisles_input = st.text_area("Outlier Aisles for Slots (optional, comma-separated)", key=f"outlier_aisles_{mod_idx}")
             outlier_aisles = {int(a.strip()) for a in outlier_aisles_input.split(',') if a.strip()}
-
             outlier_slots = {}
             if outlier_aisles:
                 st.markdown("**Outlier Slot Definitions**")
@@ -629,7 +547,6 @@ with tab3:
                     with o_col2:
                         outlier_end = st.number_input(f"End Slot for Aisle {outlier}", value=199, step=1, key=f"o_end_{mod_idx}_{outlier}")
                     outlier_slots[outlier] = (outlier_start, outlier_end)
-
             if mod_name:
                 aisle_details[mod_name] = {}
                 aisles_in_range = list(range(aisle_start, aisle_end + 1))
@@ -638,7 +555,6 @@ with tab3:
                         aisle_details[mod_name][aisle] = {"slots": outlier_slots[aisle]}
                     else:
                         aisle_details[mod_name][aisle] = {"slots": (default_start_slot, default_end_slot)}
-
     st.divider()
     st.markdown("**Step 2: Define Physical Aisle Layouts**")
     
@@ -650,7 +566,6 @@ with tab3:
         key="eoa_standard_layout_input",
         placeholder="Example:\nP-1-A: 200, 201/202, 207"
     )
-
     st.markdown("**2b. Cross-Module Pairs (Optional)**")
     st.caption("Define aisle pairs that touch across different modules.")
     cross_module_layout_input = st.text_area(
@@ -659,7 +574,6 @@ with tab3:
         key="eoa_cross_module_layout_input",
         placeholder="Example:\nP-1-A-201/P-1-B-200"
     )
-
     st.divider()
     st.markdown("**Step 3: Confirm Placement Rule**")
     if 'eoa_placement_rule' not in st.session_state:
@@ -671,12 +585,10 @@ with tab3:
         key="eoa_placement_rule",
         horizontal=True,
     )
-
     if st.button("Generate EOA Signage", key="generate_eoa_signage"):
         signage_data = []
         errors = []
         processed_aisles = set()
-
         with st.spinner("Generating EOA Signage..."):
             # --- 1. Process Cross-Module Pairs ---
             cross_module_pairs = [p.strip() for p in cross_module_layout_input.splitlines() if p.strip()]
@@ -686,10 +598,8 @@ with tab3:
                     left_mod, left_aisle_str = left_full.rsplit('-', 1)
                     right_mod, right_aisle_str = right_full.rsplit('-', 1)
                     left_aisle, right_aisle = int(left_aisle_str), int(right_aisle_str)
-
                     left_details = aisle_details.get(left_mod, {}).get(left_aisle)
                     right_details = aisle_details.get(right_mod, {}).get(right_aisle)
-
                     if not left_details or not right_details:
                         errors.append(f"Details not found for cross-module pair: {pair_str}")
                         continue
@@ -700,7 +610,6 @@ with tab3:
                     processed_aisles.add(f"{right_mod}-{right_aisle}")
                 except Exception as e:
                     errors.append(f"Could not parse cross-module pair '{pair_str}'. Error: {e}")
-
             # --- 2. Process Standard Layouts ---
             standard_layout_lines = [line.strip() for line in standard_layout_input.splitlines() if line.strip()]
             for line in standard_layout_lines:
@@ -708,7 +617,6 @@ with tab3:
                     mod_part, aisles_part = line.split(":", 1)
                     mod_name = mod_part.strip()
                     aisle_groups = [ag.strip() for ag in aisles_part.split(',') if ag.strip()]
-
                     for group in aisle_groups:
                         if "/" in group:
                             left_aisle_str, right_aisle_str = group.split('/')
@@ -744,7 +652,6 @@ with tab3:
                             processed_aisles.add(f"{mod_name}-{aisle}")
                 except Exception as e:
                     errors.append(f"Could not process layout line: '{line}'. Error: {e}")
-
         if errors:
             for error in errors:
                 st.error(error)
