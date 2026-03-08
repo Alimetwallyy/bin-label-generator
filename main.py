@@ -78,8 +78,6 @@ def plot_bin_diagram(bay_id, shelves, bins_per_shelf, base_number):
                     y1=y1,
                     fillcolor=shelf_colors.get(shelf, "lightblue"),
                     line=dict(color="black"),
-                    # note: Plotly rect shapes don't support a `label` param in older versions,
-                    # we keep the text as a separate trace below.
                 )
                 fig.add_trace(
                     go.Scatter(
@@ -303,12 +301,10 @@ with tab1:
                 count = st.number_input(f"Number of bins in shelf {shelf}", min_value=1, max_value=100, value=5, key=f"bins_{group_idx}_{shelf}")
                 bins_per_shelf[shelf] = count
 
-            # --- UPDATED parsing: accept multi-column Excel paste (tabs/spaces/comma/semicolon)
             if bays_input:
                 bay_list = []
                 lines = [ln for ln in bays_input.splitlines() if ln.strip()]
                 for line in lines:
-                    # split on tabs, commas, semicolons, or whitespace sequences
                     parts = re.split(r'[\t,; \u00A0]+', line.strip())
                     for part in parts:
                         if part:
@@ -386,29 +382,8 @@ with tab2:
     st.header("Bin Bay Mapping ↔️", divider='rainbow')
     st.markdown("Define bay definition groups and map bin IDs to bay types.")
 
-    bay_types = [
-        "Bulk Stock", "Case Flow", "Drawer", "Flat Apparel", "Hanger Rod", "Hangers",
-        "Jewelry", "Library", "Library Deep", "Pallet", "Shoes", "Random Other Bin",
-        "PassThrough"
-    ]
-
-    bay_usage_options = [
-        "*", "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS",
-        "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book",
-        "Chilled", "Chilled-FMP", "Corrosive", "Damage", "Damage Human Food",
-        "Damage Pet Food", "Damage_HRV", "Damaged Aerosol", "Damaged Corrosive",
-        "Damaged Flammable", "Damaged Flammable Aerosols", "Damaged Misc Health Hazard",
-        "Damaged Non Flammable Aerosols", "Damaged Oxidizer", "Damaged Restricted Hazmat",
-        "Damaged Toxic", "Dry Produce", "FMP", "Flammable", "Flammable Aerosols",
-        "Flammables_HRV", "Frozen", "HRV", "Hazmat", "Hazmat_HRV", "Meat-Beef",
-        "Meat-Deli", "Meat-Pork", "Meat-Poultry", "Meat-Seafood", "Misc Health Hazard",
-        "Non Flammable Aerosols", "Non Inventory Storage-Facilities",
-        "Non Inventory Storage-Other", "Non Inventory Storage-Stores",
-        "Non Inventory-Black Totes", "Non Sort-Team Lift", "Non-Storage",
-        "Non-TC Food", "Oxidizer", "Pet Food", "Produce", "Produce Backstock",
-        "Produce Wetracks", "Reserve-Ambient", "Restricted Hazmat", "Semi-Chilled",
-        "Shoes", "TC-Food", "Toxic", "Tropical"
-    ]
+    bay_types = ["Bulk Stock", "Case Flow", "Drawer", "Flat Apparel", "Hanger Rod", "Hangers", "Jewelry", "Library", "Library Deep", "Pallet", "Shoes", "Random Other Bin", "PassThrough"]
+    bay_usage_options = ["*", "45F Produce", "Aerosol", "Ambient", "Apparel", "BATTERIES", "BWS", "BWS_HIGH_FLAMMABLE", "BWS_LOW_FLAMMABLE", "BWS_MEDIUM_FLAMMABLE", "Book", "Chilled", "Chilled-FMP", "Corrosive", "Damage", "Damage Human Food", "Damage Pet Food", "Damage_HRV", "Damaged Aerosol", "Damaged Corrosive", "Damaged Flammable", "Damaged Flammable Aerosols", "Damaged Misc Health Hazard", "Damaged Non Flammable Aerosols", "Damaged Oxidizer", "Damaged Restricted Hazmat", "Damaged Toxic", "Dry Produce", "FMP", "Flammable", "Flammable Aerosols", "Flammables_HRV", "Frozen", "HRV", "Hazmat", "Hazmat_HRV", "Meat-Beef", "Meat-Deli", "Meat-Pork", "Meat-Poultry", "Meat-Seafood", "Misc Health Hazard", "Non Flammable Aerosols", "Non Inventory Storage-Facilities", "Non Inventory Storage-Other", "Non Inventory Storage-Stores", "Non Inventory-Black Totes", "Non Sort-Team Lift", "Non-Storage", "Non-TC Food", "Oxidizer", "Pet Food", "Produce", "Produce Backstock", "Produce Wetracks", "Reserve-Ambient", "Restricted Hazmat", "Semi-Chilled", "Shoes", "TC-Food", "Toxic", "Tropical"]
 
     num_groups = st.number_input("How many bay definition groups do you want to define?", min_value=1, max_value=50, value=1, key="num_groups_bin_mapping")
 
@@ -423,67 +398,30 @@ with tab2:
         header = st.session_state[f"bin_group_name_{group_idx}"].strip() or f"Bay Definition Group {group_idx + 1}"
 
         with st.expander(header, expanded=True):
-            st.text_input(
-                "Group Name",
-                value=st.session_state[f"bin_group_name_{group_idx}"],
-                key=f"bin_group_name_input_{group_idx}",
-                on_change=update_bin_group_name
-            )
-
-            bin_ids_input = st.text_area(
-                f"Enter bin IDs (e.g., P-1-B217A262)",
-                key=f"bin_ids_{group_idx}",
-                help="Paste Bin IDs from Excel (tab-separated, space-separated, or one per line)."
-            )
-
-            bay_definition = st.text_input(
-                "Enter Bay Definition",
-                max_chars=48,
-                key=f"bay_definition_{group_idx}"
-            )
-            
+            st.text_input("Group Name", value=st.session_state[f"bin_group_name_{group_idx}"], key=f"bin_group_name_input_{group_idx}", on_change=update_bin_group_name)
+            bin_ids_input = st.text_area(f"Enter bin IDs (e.g., P-1-B217A262)", key=f"bin_ids_{group_idx}", help="Paste Bin IDs from Excel (tab-separated, space-separated, or one per line).")
+            bay_definition = st.text_input("Enter Bay Definition", max_chars=48, key=f"bay_definition_{group_idx}")
             st.divider()
             st.markdown("**Default Dimensions for the Group**")
             col1, col2, col3 = st.columns(3)
-            with col1:
-                height_cm = st.number_input("Height (CM)", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}")
-            with col2:
-                width_cm = st.number_input("Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}")
-            with col3:
-                depth_cm = st.number_input("Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}")
-            
+            with col1: height_cm = st.number_input("Height (CM)", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}")
+            with col2: width_cm = st.number_input("Width (CM)", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}")
+            with col3: depth_cm = st.number_input("Depth (CM)", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}")
             st.divider()
-            outlier_shelves_input = st.text_input(
-                "Outlier Shelves (optional, comma-separated, e.g., C,D)",
-                key=f"outlier_shelves_{group_idx}",
-                help="Define shelves with different dimensions from the default."
-            )
-            st.caption("The app identifies a shelf by finding a capital letter followed by numbers at the end of the Bin ID (e.g., the 'C' in '...A208C120').")
-            
+            outlier_shelves_input = st.text_input("Outlier Shelves (optional, comma-separated, e.g., C,D)", key=f"outlier_shelves_{group_idx}", help="Define shelves with different dimensions from the default.")
             outlier_shelves = [s.strip().upper() for s in outlier_shelves_input.split(',') if s.strip()]
-
             outlier_dimensions = {}
             if outlier_shelves:
                 for shelf in outlier_shelves:
                     st.markdown(f"**Dimensions for Outlier Shelf: {shelf}**")
                     o_col1, o_col2, o_col3 = st.columns(3)
-                    with o_col1:
-                        o_height = st.number_input(f"Height (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}_{shelf}")
-                    with o_col2:
-                        o_width = st.number_input(f"Width (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}_{shelf}")
-                    with o_col3:
-                        o_depth = st.number_input(f"Depth (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}_{shelf}")
-                    outlier_dimensions[shelf] = {
-                        "height_cm": o_height,
-                        "width_cm": o_width,
-                        "depth_cm": o_depth,
-                    }
+                    with o_col1: o_height = st.number_input(f"Height (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"height_cm_{group_idx}_{shelf}")
+                    with o_col2: o_width = st.number_input(f"Width (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"width_cm_{group_idx}_{shelf}")
+                    with o_col3: o_depth = st.number_input(f"Depth (CM) for Shelf {shelf}", min_value=0.0, value=0.0, key=f"depth_cm_{group_idx}_{shelf}")
+                    outlier_dimensions[shelf] = {"height_cm": o_height, "width_cm": o_width, "depth_cm": o_depth}
                 st.divider()
-
             bay_usage = st.selectbox("Select Bay Usage", options=bay_usage_options, index=0, key=f"bay_usage_{group_idx}")
             bay_type = st.selectbox("Select Bay Type", options=bay_types, index=0, key=f"bay_type_{group_idx}")
-
-            st.markdown("Enter Zone bins are inside followed by depth of bays. ex: Library (30D)")
             zone = st.text_input("Zone", max_chars=25, key=f"zone_{group_idx}")
 
             if bin_ids_input:
@@ -505,19 +443,15 @@ with tab2:
                     if temp_errors:
                         with st.container():
                             st.markdown("**Errors in this group:**")
-                            for error in temp_errors:
-                                st.warning(error)
+                            for error in temp_errors: st.warning(error)
 
     if bay_groups:
         duplicate_errors = check_duplicate_bin_ids(bay_groups)
         with st.expander("⚠️ Duplicate Errors", expanded=bool(duplicate_errors)):
             if duplicate_errors:
-                for error in duplicate_errors:
-                    st.warning(error)
-            else:
-                st.info("No duplicate bin IDs detected.")
-    else:
-        st.warning("⚠️ Please define at least one bay definition group with valid bin IDs.")
+                for error in duplicate_errors: st.warning(error)
+            else: st.info("No duplicate bin IDs detected.")
+    else: st.warning("⚠️ Please define at least one bay definition group with valid bin IDs.")
 
     if st.button("Generate Excel", disabled=bool(duplicate_errors or not bay_groups), key="generate_bin_mapping_excel"):
         with st.spinner("Generating Excel file..."):
@@ -530,269 +464,153 @@ with tab2:
                     if "error" in parsed:
                         st.error(f"Invalid bay definition in {group['name']}: {parsed['error']}")
                         break
-
                     for bin_id in group["bin_ids"]:
-                        current_h = group["height_cm"]
-                        current_w = group["width_cm"]
-                        current_d = group["depth_cm"]
-
+                        current_h, current_w, current_d = group["height_cm"], group["width_cm"], group["depth_cm"]
                         match = re.search(r'([A-Z])\d+$', bin_id)
                         if match:
                             found_shelf = match.group(1)
                             if found_shelf in group["outlier_dimensions"]:
                                 outlier_dims = group["outlier_dimensions"][found_shelf]
-                                current_h = outlier_dims["height_cm"]
-                                current_w = outlier_dims["width_cm"]
-                                current_d = outlier_dims["depth_cm"]
-                        
-                        data.append({
-                            "ScannableId": bin_id,
-                            "Distance Index": None,
-                            "Depth": round(current_d , 2) if current_d else None,
-                            "Width": round(current_w , 2) if current_w else None,
-                            "Height": round(current_h , 2) if current_h else None,
-                            "Zone": group["zone"],
-                            "Bay Definition": bay_def,
-                            "bin_size": f"{int(current_d)}Deep" if current_d else "",
-                            "Bay Type": group["bay_type"],
-                            "Bay Usage": group["bay_usage"]
-                        })
+                                current_h, current_w, current_d = outlier_dims["height_cm"], outlier_dims["width_cm"], outlier_dims["depth_cm"]
+                        data.append({"ScannableId": bin_id, "Distance Index": None, "Depth": round(current_d , 2) if current_d else None, "Width": round(current_w , 2) if current_w else None, "Height": round(current_h , 2) if current_h else None, "Zone": group["zone"], "Bay Definition": bay_def, "bin_size": f"{int(current_d)}Deep" if current_d else "", "Bay Type": group["bay_type"], "Bay Usage": group["bay_usage"]})
                 else:
                     df = pd.DataFrame(data)
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df.to_excel(writer, index=False, sheet_name="Bin Bay Mapping")
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name="Bin Bay Mapping")
                     output.seek(0)
-
                     st.success(f"✅ Success! Mapped {len(df)} bin IDs across {len(bay_groups)} groups.")
-                    st.download_button(
-                        label="📥 Download Excel File",
-                        data=output,
-                        file_name="bin_bay_mapping.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="download_bin_mapping_excel"
-                    )
-            except Exception as e:
-                st.error(f"Error generating Excel: {str(e)}")
+                    st.download_button(label="📥 Download Excel File", data=output, file_name="bin_bay_mapping.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="download_bin_mapping_excel")
+            except Exception as e: st.error(f"Error generating Excel: {str(e)}")
 
 with tab3:
     st.header("EOA Generator 🪧", divider='rainbow')
-    
     st.markdown("**Step 1: Define All Aisles and Their Slot Ranges**")
-    st.caption("Define all modules. For each, set a default slot range and specify any aisles with different slots.")
-    
     num_mod_defs = st.number_input("How many modules do you want to define?", min_value=1, max_value=20, value=1, key="num_mod_defs")
-    
     aisle_details = {} 
     
     for mod_idx in range(num_mod_defs):
-        if f"eoa_mod_name_{mod_idx}" not in st.session_state:
-            st.session_state[f"eoa_mod_name_{mod_idx}"] = ""
-
-        def update_eoa_mod_name(idx=mod_idx):
-            current_val = st.session_state[f"eoa_mod_name_input_{idx}"]
-            st.session_state[f"eoa_mod_name_{idx}"] = current_val or f"Module Definition {idx + 1}"
-
+        if f"eoa_mod_name_{mod_idx}" not in st.session_state: st.session_state[f"eoa_mod_name_{mod_idx}"] = ""
+        def update_eoa_mod_name(idx=mod_idx): st.session_state[f"eoa_mod_name_{idx}"] = st.session_state[f"eoa_mod_name_input_{idx}"] or f"Module Definition {idx + 1}"
         header = st.session_state[f"eoa_mod_name_{mod_idx}"] or f"Module Definition {mod_idx + 1}"
-
         with st.expander(header, expanded=True):
-            mod_name = st.text_input(
-                "Module Name (e.g., P-1-A)",
-                key=f"eoa_mod_name_input_{mod_idx}",
-                on_change=update_eoa_mod_name,
-            ).strip()
-            
+            mod_name = st.text_input("Module Name (e.g., P-1-A)", key=f"eoa_mod_name_input_{mod_idx}", on_change=update_eoa_mod_name).strip()
             col1, col2 = st.columns(2)
-            with col1:
-                aisle_start = st.number_input(f"Start Aisle", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
-            with col2:
-                aisle_end = st.number_input(f"End Aisle", min_value=aisle_start, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
-            
+            with col1: aisle_start = st.number_input(f"Start Aisle", min_value=1, value=200, step=1, key=f"aisle_start_{mod_idx}")
+            with col2: aisle_end = st.number_input(f"End Aisle", min_value=aisle_start, value=aisle_start, step=1, key=f"aisle_end_{mod_idx}")
             st.divider()
-            
             st.markdown("**Default Slot Range for this Module**")
             d_col1, d_col2 = st.columns(2)
-            with d_col1:
-                default_start_slot = st.number_input("Default Start Slot", value=1, step=1, key=f"d_slot_start_{mod_idx}")
-            with d_col2:
-                default_end_slot = st.number_input("Default End Slot", value=199, step=1, key=f"d_slot_end_{mod_idx}")
-
+            with d_col1: default_start_slot = st.number_input("Default Start Slot", value=1, step=1, key=f"d_slot_start_{mod_idx}")
+            with d_col2: default_end_slot = st.number_input("Default End Slot", value=199, step=1, key=f"d_slot_end_{mod_idx}")
             outlier_aisles_input = st.text_area("Outlier Aisles for Slots (optional, comma-separated)", key=f"outlier_aisles_{mod_idx}")
             outlier_aisles = {int(a.strip()) for a in outlier_aisles_input.split(',') if a.strip()}
-
             outlier_slots = {}
             if outlier_aisles:
                 st.markdown("**Outlier Slot Definitions**")
                 for outlier in sorted(list(outlier_aisles)):
                     o_col1, o_col2 = st.columns(2)
-                    with o_col1:
-                        outlier_start = st.number_input(f"Start Slot for Aisle {outlier}", value=1, step=1, key=f"o_start_{mod_idx}_{outlier}")
-                    with o_col2:
-                        outlier_end = st.number_input(f"End Slot for Aisle {outlier}", value=199, step=1, key=f"o_end_{mod_idx}_{outlier}")
-                    outlier_slots[outlier] = (outlier_start, outlier_end)
-
+                    with o_col1: o_start = st.number_input(f"Start Slot for Aisle {outlier}", value=1, step=1, key=f"o_start_{mod_idx}_{outlier}")
+                    with o_col2: o_end = st.number_input(f"End Slot for Aisle {outlier}", value=199, step=1, key=f"o_end_{mod_idx}_{outlier}")
+                    outlier_slots[outlier] = (o_start, o_end)
             if mod_name:
                 aisle_details[mod_name] = {}
-                aisles_in_range = list(range(aisle_start, aisle_end + 1))
-                for aisle in aisles_in_range:
-                    if aisle in outlier_slots:
-                        aisle_details[mod_name][aisle] = {"slots": outlier_slots[aisle]}
-                    else:
-                        aisle_details[mod_name][aisle] = {"slots": (default_start_slot, default_end_slot)}
+                for aisle in range(aisle_start, aisle_end + 1):
+                    aisle_details[mod_name][aisle] = {"slots": outlier_slots[aisle] if aisle in outlier_slots else (default_start_slot, default_end_slot)}
 
     st.divider()
     st.markdown("**Step 2: Define Physical Aisle Layouts**")
-    
-    st.markdown("**2a. Standard (Single-Module) Layouts**")
-    st.caption("Describe how aisles within the same module are arranged.")
-    standard_layout_input = st.text_area(
-        "Standard Layouts (one module per line)",
-        height=150,
-        key="eoa_standard_layout_input",
-        placeholder="Example:\nP-1-A: 200, 201/202, 207"
-    )
-
-    st.markdown("**2b. Cross-Module Pairs (Optional)**")
-    st.caption("Define aisle pairs that touch across different modules.")
-    cross_module_layout_input = st.text_area(
-        "Cross-Module Pairs (one pair per line)",
-        height=100,
-        key="eoa_cross_module_layout_input",
-        placeholder="Example:\nP-1-A-201/P-1-B-200"
-    )
-
+    standard_layout_input = st.text_area("Standard Layouts (one module per line)", height=150, key="eoa_standard_layout_input", placeholder="Example:\nP-1-A: 200, 201/202, 207")
+    cross_module_layout_input = st.text_area("Cross-Module Pairs (one pair per line)", height=100, key="eoa_cross_module_layout_input", placeholder="Example:\nP-1-A-201/P-1-B-200")
     st.divider()
     st.markdown("**Step 3: Confirm Placement Rule**")
-    if 'eoa_placement_rule' not in st.session_state:
-        st.session_state.eoa_placement_rule = "Odd on Left / Even on Right"
-    
-    st.radio(
-        "Low End Placement Rule (for single-sided signs)",
-        ["Odd on Left / Even on Right", "Even on Left / Odd on Right"],
-        key="eoa_placement_rule",
-        horizontal=True,
-    )
+    if 'eoa_placement_rule' not in st.session_state: st.session_state.eoa_placement_rule = "Odd on Left / Even on Right"
+    st.radio("Low End Placement Rule (Applied to all signs)", ["Odd on Left / Even on Right", "Even on Left / Odd on Right"], key="eoa_placement_rule", horizontal=True)
 
     if st.button("Generate EOA Signage", key="generate_eoa_signage"):
-        signage_data = []
-        errors = []
-        processed_aisles = set()
+        signage_data, errors, processed_aisles = [], [], set()
+        is_odd_left = st.session_state.eoa_placement_rule == "Odd on Left / Even on Right"
 
         with st.spinner("Generating EOA Signage..."):
             # --- 1. Process Cross-Module Pairs ---
-            cross_module_pairs = [p.strip() for p in cross_module_layout_input.splitlines() if p.strip()]
-            for pair_str in cross_module_pairs:
+            for pair_str in [p.strip() for p in cross_module_layout_input.splitlines() if p.strip()]:
                 try:
                     left_full, right_full = pair_str.split('/')
-                    left_mod, left_aisle_str = left_full.rsplit('-', 1)
-                    right_mod, right_aisle_str = right_full.rsplit('-', 1)
-                    left_aisle, right_aisle = int(left_aisle_str), int(right_aisle_str)
-
-                    left_details = aisle_details.get(left_mod, {}).get(left_aisle)
-                    right_details = aisle_details.get(right_mod, {}).get(right_aisle)
-
-                    if not left_details or not right_details:
-                        errors.append(f"Details not found for cross-module pair: {pair_str}")
-                        continue
+                    l_mod, l_a_str = left_full.rsplit('-', 1)
+                    r_mod, r_a_str = right_full.rsplit('-', 1)
+                    l_a, r_a = int(l_a_str), int(r_a_str)
+                    l_det, r_det = aisle_details.get(l_mod, {}).get(l_a), aisle_details.get(r_mod, {}).get(r_a)
+                    if not l_det or not r_det: errors.append(f"Missing details: {pair_str}"); continue
                     
-                    signage_data.append({"Left.Mod": left_mod, "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}", "Right.Mod": right_mod, "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}", "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"})
-                    signage_data.append({"Left.Mod": right_mod, "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}", "Right.Mod": left_mod, "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}", "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"})
-                    processed_aisles.add(f"{left_mod}-{left_aisle}")
-                    processed_aisles.add(f"{right_mod}-{right_aisle}")
-                except Exception as e:
-                    errors.append(f"Could not parse cross-module pair '{pair_str}'. Error: {e}")
+                    # Apply rule to choose left/right based on parity
+                    if (is_odd_left and l_a % 2 != 0) or (not is_odd_left and l_a % 2 == 0):
+                        act_l_m, act_l_a, act_l_s, act_r_m, act_r_a, act_r_s = l_mod, l_a, l_det, r_mod, r_a, r_det
+                    else:
+                        act_l_m, act_l_a, act_l_s, act_r_m, act_r_a, act_r_s = r_mod, r_a, r_det, l_mod, l_a, l_det
+
+                    signage_data.append({"Left.Mod": act_l_m, "Left.Aisle": act_l_a, "Left.Slots": f"{act_l_s['slots'][0]}-{act_l_s['slots'][1]}", "Right.Mod": act_r_m, "Right.Aisle": act_r_a, "Right.Slots": f"{act_r_s['slots'][0]}-{act_r_s['slots'][1]}", "Deployment Location": f"Low End of Aisle {l_a}/{r_a}"})
+                    signage_data.append({"Left.Mod": act_r_m, "Left.Aisle": act_r_a, "Left.Slots": f"{act_r_s['slots'][1]}-{act_r_s['slots'][0]}", "Right.Mod": act_l_m, "Right.Aisle": act_l_a, "Right.Slots": f"{act_l_s['slots'][1]}-{act_l_s['slots'][0]}", "Deployment Location": f"High End of Aisle {l_a}/{r_a}"})
+                    processed_aisles.update({f"{l_mod}-{l_a}", f"{r_mod}-{r_a}"})
+                except Exception as e: errors.append(f"Error cross-mod pair '{pair_str}': {e}")
 
             # --- 2. Process Standard Layouts ---
-            standard_layout_lines = [line.strip() for line in standard_layout_input.splitlines() if line.strip()]
-            for line in standard_layout_lines:
+            for line in [line.strip() for line in standard_layout_input.splitlines() if line.strip()]:
                 try:
-                    mod_part, aisles_part = line.split(":", 1)
-                    mod_name = mod_part.strip()
-                    aisle_groups = [ag.strip() for ag in aisles_part.split(',') if ag.strip()]
-
-                    for group in aisle_groups:
+                    mod_name, aisles_part = line.split(":", 1)
+                    mod_name = mod_name.strip()
+                    for group in [ag.strip() for ag in aisles_part.split(',') if ag.strip()]:
                         if "/" in group:
-                            left_aisle_str, right_aisle_str = group.split('/')
-                            left_aisle, right_aisle = int(left_aisle_str), int(right_aisle_str)
-                            if f"{mod_name}-{left_aisle}" in processed_aisles or f"{mod_name}-{right_aisle}" in processed_aisles: continue
-                            left_details = aisle_details.get(mod_name, {}).get(left_aisle)
-                            right_details = aisle_details.get(mod_name, {}).get(right_aisle)
-                            if not left_details or not right_details:
-                                errors.append(f"Details not found for pair {group} in module {mod_name}")
-                                continue
-                            signage_data.append({"Left.Mod": mod_name, "Left.Aisle": left_aisle, "Left.Slots": f"{left_details['slots'][0]}-{left_details['slots'][1]}", "Right.Mod": mod_name, "Right.Aisle": right_aisle, "Right.Slots": f"{right_details['slots'][0]}-{right_details['slots'][1]}", "Deployment Location": f"Low End of Aisle {left_aisle}/{right_aisle}"})
-                            signage_data.append({"Left.Mod": mod_name, "Left.Aisle": right_aisle, "Left.Slots": f"{right_details['slots'][1]}-{right_details['slots'][0]}", "Right.Mod": mod_name, "Right.Aisle": left_aisle, "Right.Slots": f"{left_details['slots'][1]}-{left_details['slots'][0]}", "Deployment Location": f"High End of Aisle {left_aisle}/{right_aisle}"})
-                            processed_aisles.add(f"{mod_name}-{left_aisle}")
-                            processed_aisles.add(f"{mod_name}-{right_aisle}")
+                            l_a, r_a = map(int, group.split('/'))
+                            if f"{mod_name}-{l_a}" in processed_aisles or f"{mod_name}-{r_a}" in processed_aisles: continue
+                            l_det, r_det = aisle_details.get(mod_name, {}).get(l_a), aisle_details.get(mod_name, {}).get(r_a)
+                            if not l_det or not r_det: errors.append(f"Missing details for {group}"); continue
+                            
+                            if (is_odd_left and l_a % 2 != 0) or (not is_odd_left and l_a % 2 == 0):
+                                act_l_a, act_l_s, act_r_a, act_r_s = l_a, l_det, r_a, r_det
+                            else:
+                                act_l_a, act_l_s, act_r_a, act_r_s = r_a, r_det, l_a, l_det
+
+                            signage_data.append({"Left.Mod": mod_name, "Left.Aisle": act_l_a, "Left.Slots": f"{act_l_s['slots'][0]}-{act_l_s['slots'][1]}", "Right.Mod": mod_name, "Right.Aisle": act_r_a, "Right.Slots": f"{act_r_s['slots'][0]}-{act_r_s['slots'][1]}", "Deployment Location": f"Low End of Aisle {l_a}/{r_a}"})
+                            signage_data.append({"Left.Mod": mod_name, "Left.Aisle": act_r_a, "Left.Slots": f"{act_r_s['slots'][1]}-{act_r_s['slots'][0]}", "Right.Mod": mod_name, "Right.Aisle": act_l_a, "Right.Slots": f"{act_l_s['slots'][1]}-{act_l_s['slots'][0]}", "Deployment Location": f"High End of Aisle {l_a}/{r_a}"})
+                            processed_aisles.update({f"{mod_name}-{l_a}", f"{mod_name}-{r_a}"})
                         else:
                             aisle = int(group)
                             if f"{mod_name}-{aisle}" in processed_aisles: continue
-                            details = aisle_details.get(mod_name, {}).get(aisle)
-                            if not details:
-                                errors.append(f"Details not found for single aisle {aisle} in module {mod_name}")
-                                continue
-                            is_even = aisle % 2 == 0
-                            low_end_side = "Right" if (st.session_state.eoa_placement_rule == "Odd on Left / Even on Right" and is_even) or (st.session_state.eoa_placement_rule == "Even on Left / Odd on Right" and not is_even) else "Left"
-                            high_end_side = "Left" if low_end_side == "Right" else "Right"
+                            det = aisle_details.get(mod_name, {}).get(aisle)
+                            if not det: errors.append(f"Missing details for {aisle}"); continue
+                            low_end_side = "Left" if (is_odd_left and aisle % 2 != 0) or (not is_odd_left and aisle % 2 == 0) else "Right"
+                            high_end_side = "Right" if low_end_side == "Left" else "Left"
+                            
                             sign_low = {"Deployment Location": f"Low End of Aisle {aisle}"}
-                            if low_end_side == "Left": sign_low.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
-                            else: sign_low.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][0]}-{details['slots'][1]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
+                            if low_end_side == "Left": sign_low.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{det['slots'][0]}-{det['slots'][1]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
+                            else: sign_low.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{det['slots'][0]}-{det['slots'][1]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
                             signage_data.append(sign_low)
+                            
                             sign_high = {"Deployment Location": f"High End of Aisle {aisle}"}
-                            if high_end_side == "Left": sign_high.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
-                            else: sign_high.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{details['slots'][1]}-{details['slots'][0]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
+                            if high_end_side == "Left": sign_high.update({"Left.Mod": mod_name, "Left.Aisle": aisle, "Left.Slots": f"{det['slots'][1]}-{det['slots'][0]}", "Right.Mod": "", "Right.Aisle": "", "Right.Slots": ""})
+                            else: sign_high.update({"Right.Mod": mod_name, "Right.Aisle": aisle, "Right.Slots": f"{det['slots'][1]}-{det['slots'][0]}", "Left.Mod": "", "Left.Aisle": "", "Left.Slots": ""})
                             signage_data.append(sign_high)
                             processed_aisles.add(f"{mod_name}-{aisle}")
-                except Exception as e:
-                    errors.append(f"Could not process layout line: '{line}'. Error: {e}")
+                except Exception as e: errors.append(f"Error line '{line}': {e}")
 
-        if errors:
-            for error in errors:
-                st.error(error)
-        
+        for err in errors: st.error(err)
         if signage_data:
-            st.success(f"✅ Success! Generated {len(signage_data)} sign definitions.")
-            st.subheader("Preview Signage Data")
-            df_preview = pd.DataFrame(signage_data)
-            st.dataframe(df_preview, use_container_width=True)
-            
+            st.success(f"✅ Generated {len(signage_data)} sign definitions.")
+            st.dataframe(pd.DataFrame(signage_data), use_container_width=True)
             output = io.BytesIO()
             wb = Workbook()
             ws = wb.active
-            ws.title = "EOA Signage"
             ws.merge_cells("A1:C1"); ws["A1"] = "Left Side of Sign"
             ws.merge_cells("E1:G1"); ws["E1"] = "Right Side of Sign"
-            ws["A2"] = "Mod"; ws["B2"] = "Aisle"; ws["C2"] = "Slots"
-            ws["E2"] = "Mod"; ws["F2"] = "Aisle"; ws["G2"] = "Slots"
-            ws["H2"] = "Deployment Location"
-            black_fill = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
-            white_font = Font(color="FFFFFF", bold=True)
-            center_align = Alignment(horizontal="center", vertical="center")
+            ws["A2"], ws["B2"], ws["C2"], ws["E2"], ws["F2"], ws["G2"], ws["H2"] = "Mod", "Aisle", "Slots", "Mod", "Aisle", "Slots", "Deployment Location"
+            black_fill, white_font, center_align = PatternFill(start_color="000000", end_color="000000", fill_type="solid"), Font(color="FFFFFF", bold=True), Alignment(horizontal="center", vertical="center")
             thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
             for row in ws["A1:H2"]:
                 for cell in row:
-                    cell.fill = black_fill
-                    cell.border = thin_border
-                    if cell.value:
-                        cell.font = white_font
-                        cell.alignment = center_align
-            for row_idx, row_data in enumerate(signage_data, start=3):
-                ws[f"A{row_idx}"] = row_data.get("Left.Mod", "")
-                ws[f"B{row_idx}"] = row_data.get("Left.Aisle", "")
-                ws[f"C{row_idx}"] = row_data.get("Left.Slots", "")
-                ws[f"E{row_idx}"] = row_data.get("Right.Mod", "")
-                ws[f"F{row_idx}"] = row_data.get("Right.Aisle", "")
-                ws[f"G{row_idx}"] = row_data.get("Right.Slots", "")
-                ws[f"H{row_idx}"] = row_data.get("Deployment Location", "")
-                for col in "ABCEFGH":
-                    ws[f"{col}{row_idx}"].alignment = center_align
-                    ws[f"{col}{row_idx}"].border = thin_border
+                    cell.fill, cell.border = black_fill, thin_border
+                    if cell.value: cell.font, cell.alignment = white_font, center_align
+            for row_idx, r_d in enumerate(signage_data, start=3):
+                for col, key in zip("ABCEFGH", ["Left.Mod", "Left.Aisle", "Left.Slots", "Right.Mod", "Right.Aisle", "Right.Slots", "Deployment Location"]):
+                    ws[f"{col}{row_idx}"] = r_d.get(key, "")
+                    ws[f"{col}{row_idx}"].alignment, ws[f"{col}{row_idx}"].border = center_align, thin_border
             wb.save(output)
             output.seek(0)
-            
-            st.download_button(
-                label="📥 Download EOA Signage Excel",
-                data=output,
-                file_name="eoa_signage.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_eoa_excel_new"
-            )
+            st.download_button(label="📥 Download EOA Signage Excel", data=output, file_name="eoa_signage.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="download_eoa_excel_new")
